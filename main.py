@@ -1,4 +1,5 @@
 import ui
+import console
 
 # ฟังก์ชันสำหรับสร้างปุ่มแบบกำหนดเอง
 def create_button(parent_view, y_pos, title, action_func):
@@ -12,11 +13,17 @@ def create_button(parent_view, y_pos, title, action_func):
     return btn
 
 def settings_action(sender):
-    menu = ui.ActionSheet('เมนูจัดการ')
-    menu.add_item('สร้างไฟล์ใหม่', action=lambda s: print('ไปที่หน้าสร้างไฟล์'))
-    menu.add_item('จัดการข้อมูล', action=lambda s: print('ไปที่หน้าจัดการข้อมูล'))
-    menu.add_item('ยกเลิก', destructive=True)
-    menu.present()
+    # ใช้ console.alert แทน ActionSheet
+    try:
+        button_index = console.alert('เมนูจัดการ', 'เลือกรายการที่ต้องการ', 'สร้างไฟล์ใหม่', 'จัดการข้อมูล')
+        # button_index จะคืนค่าเป็นลำดับปุ่มที่กด (เริ่มจาก 1)
+        if button_index == 1:
+            print('ไปที่หน้าสร้างไฟล์')
+        elif button_index == 2:
+            print('ไปที่หน้าจัดการข้อมูล')
+    except KeyboardInterrupt:
+        # กรณีผู้ใช้กด Cancel
+        pass
 
 def main():
     view = ui.View(name='ChanaFinance')
