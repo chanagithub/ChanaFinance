@@ -23,24 +23,26 @@ def settings_action(sender):
         # ดักกรณีผู้ใช้กด Cancel หรือปิดหน้าต่าง Alert
         print(f"ยกเลิกหรือปิดเมนู: {e}")
 
-        
+
 def main():
     view = ui.View(name='ChanaFinance')
+    # ใช้ขนาดหน้าจออุปกรณ์เป็นตัวกำหนด frame ของ view
+    w, h = ui.get_screen_size()
+    view.frame = (0, 0, w, h)
     view.background_color = 'white'
 
-    # สร้างปุ่มเมนูหลัก
     buttons = [
-        ('รายรับ', lambda s: print('เปิดหน้ารายรับ')),
-        ('รายจ่าย', lambda s: print('เปิดหน้ารายจ่าย')),
-        ('สรุปรายรับ-รายจ่าย/เดือน', lambda s: print('เปิดหน้าสรุปรายเดือน')),
-        ('สรุปยอดรายปี', lambda s: print('เปิดหน้าสรุปรายปี')),
-        ('ออก', lambda s: view.close())
+        ('รายรับ', lambda _: print('รายรับ')),
+        ('รายจ่าย', lambda _: print('รายจ่าย')),
+        ('สรุปรายรับ-รายจ่าย/เดือน', lambda _: print('สรุปรายเดือน')),
+        ('สรุปยอดรายปี', lambda _: print('สรุปรายปี')),
+        ('ออก', lambda _: view.close())
     ]
 
     for i, (title, action) in enumerate(buttons):
-        create_button(view, 100 + (i * 70), title, action)
+        # ลด y ลงมาให้มั่นใจว่าอยู่ในจอ
+        create_button(view, 50 + (i * 80), title, action)
 
-    # สร้างเมนู 3 จุด
     settings_btn = ui.ButtonItem(title='•••')
     settings_btn.action = settings_action
     view.right_button_items = [settings_btn]
