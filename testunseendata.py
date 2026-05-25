@@ -14,10 +14,7 @@ def test_database_operations():
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     # สร้างตารางถ้ายังไม่มี
-    cursor.execute('''CREATE TABLE IF NOT EXISTS income 
-                      (id INTEGER PRIMARY KEY, description TEXT, amount REAL)''')
-
-    # ใส่ข้อมูล 2 เรคคอร์ด
+    
     cursor.execute("INSERT INTO income (detail_id, amount) VALUES (?, ?)", (1, 50000))
     cursor.execute("INSERT INTO income (detail_id, amount) VALUES (?, ?)", (2, 5000))
 
