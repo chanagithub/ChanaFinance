@@ -72,36 +72,12 @@ def create_new_file():
         conn.close()
         dialogs.hud_alert(f"สร้างไฟล์ {file_name} เรียบร้อยแล้ว", icon='success')
         print(f"ไฟล์ฐานข้อมูลถูกสร้างที่: {db_path}")
-        test_file_creation()  # เรียกฟังก์ชันทดสอบการสร้างไฟล์
-        find_my_file_path('test_connection.txt')  # เรียกฟังก์ชันค้นหาไฟล์ทดสอบ
+        #find_my_file_path('test_connection.txt')  # เรียกฟังก์ชันค้นหาไฟล์ทดสอบ
 
     except Exception as e:
         dialogs.hud_alert("เกิดข้อผิดพลาดในการสร้างไฟล์", icon='error')
         print(e)
 
-
-def test_file_creation():
-    # 1. กำหนดโฟลเดอร์โครงการ (ชื่อเดียวกับที่คุณใช้สร้าง .db)
-    folder_name = "ChanaFinance"
-    base_path = os.path.expanduser('~/Documents')
-    folder_path = os.path.join(base_path, folder_name)
-    
-    # 2. สร้างโฟลเดอร์ถ้ายังไม่มี
-    if not os.path.exists(folder_path):
-        os.makedirs(folder_path)
-    
-    # 3. กำหนด path ของไฟล์ทดสอบ
-    test_file_path = os.path.join(folder_path, 'test_connection.txt')
-    
-    # 4. เขียนไฟล์ทดสอบ
-    try:
-        with open(test_file_path, 'w') as f:
-            f.write("Test successful! I can write here.")
-        
-        print(f"เขียนไฟล์สำเร็จที่: {test_file_path}")
-        print(f"ไฟล์ถูกสร้างขึ้นแล้ว: {os.path.exists(test_file_path)}")
-    except Exception as e:
-        print(f"เกิดข้อผิดพลาดในการเขียนไฟล์: {e}")
 
 def find_db_files():
     # ค้นหาในโฟลเดอร์ Documents และโฟลเดอร์ย่อยทั้งหมด
