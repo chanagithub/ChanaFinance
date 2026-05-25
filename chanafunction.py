@@ -73,7 +73,7 @@ def create_new_file():
         dialogs.hud_alert(f"สร้างไฟล์ {file_name} เรียบร้อยแล้ว", icon='success')
         print(f"ไฟล์ฐานข้อมูลถูกสร้างที่: {db_path}")
         test_file_creation()  # เรียกฟังก์ชันทดสอบการสร้างไฟล์
-        find_db_files()  # เรียกฟังก์ชันค้นหาไฟล์ฐานข้อมูล
+        find_my_file_path('test_connection.txt')  # เรียกฟังก์ชันค้นหาไฟล์ทดสอบ
 
     except Exception as e:
         dialogs.hud_alert("เกิดข้อผิดพลาดในการสร้างไฟล์", icon='error')
@@ -113,6 +113,34 @@ def find_db_files():
             if file.endswith(".db"):
                 full_path = os.path.join(root, file)
                 print(f"เจอไฟล์ฐานข้อมูลที่: {full_path}")
+
+import os
+
+def find_my_file_path(target_filename):
+    # เริ่มค้นหาจาก root directory ของระบบไฟล์ในแอป Pythonista
+    # (ปกติคือ /var/mobile/Containers/Data/Application/...)
+    start_path = os.path.expanduser('~')
+    
+    print(f"กำลังค้นหาไฟล์ '{target_filename}' จาก: {start_path}")
+    print("โปรดรอสักครู่...")
+    
+    found_paths = []
+    
+    # เดินไล่หาไฟล์ทุกโฟลเดอร์ในเครื่อง
+    for root, dirs, files in os.walk(start_path):
+        if target_filename in files:
+            full_path = os.path.join(root, target_filename)
+            found_paths.append(full_path)
+            
+    if found_paths:
+        print(f"\n--- พบไฟล์แล้ว {len(found_paths)} ตำแหน่ง ---")
+        for path in found_paths:
+            print(f"Path: {path}")
+    else:
+        print("\nไม่พบไฟล์ดังกล่าวในเครื่องนี้")
+
+# สั่งค้นหาไฟล์ทดสอบ
+
 
 
 
