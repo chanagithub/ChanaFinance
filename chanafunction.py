@@ -73,7 +73,8 @@ def create_new_file():
         dialogs.hud_alert(f"สร้างไฟล์ {file_name} เรียบร้อยแล้ว", icon='success')
         print(f"ไฟล์ฐานข้อมูลถูกสร้างที่: {db_path}")
         test_file_creation()  # เรียกฟังก์ชันทดสอบการสร้างไฟล์
-        
+        find_db_files()  # เรียกฟังก์ชันค้นหาไฟล์ฐานข้อมูล
+
     except Exception as e:
         dialogs.hud_alert("เกิดข้อผิดพลาดในการสร้างไฟล์", icon='error')
         print(e)
@@ -102,6 +103,16 @@ def test_file_creation():
     except Exception as e:
         print(f"เกิดข้อผิดพลาดในการเขียนไฟล์: {e}")
 
+def find_db_files():
+    # ค้นหาในโฟลเดอร์ Documents และโฟลเดอร์ย่อยทั้งหมด
+    base_dir = os.path.expanduser('~/Documents')
+    print(f"กำลังค้นหาไฟล์ใน: {base_dir} ...")
+    
+    for root, dirs, files in os.walk(base_dir):
+        for file in files:
+            if file.endswith(".db"):
+                full_path = os.path.join(root, file)
+                print(f"เจอไฟล์ฐานข้อมูลที่: {full_path}")
 
 
 
