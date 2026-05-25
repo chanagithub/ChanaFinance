@@ -73,13 +73,13 @@ def create_new_file():
         dialogs.hud_alert(f"สร้างไฟล์ {file_name} เรียบร้อยแล้ว", icon='success')
         print(f"ไฟล์ฐานข้อมูลถูกสร้างที่: {db_path}")
         #find_my_file_path('test_connection.txt')  # เรียกฟังก์ชันค้นหาไฟล์ทดสอบ
-        find_db_files()
+        find_db_files("new")
 
     except Exception as e:
         dialogs.hud_alert("เกิดข้อผิดพลาดในการสร้างไฟล์", icon='error')
         print(e)
 
-    find_db_files("new")
+    
 
 def find_db_files(startfilenamewith):
     # ค้นหาในโฟลเดอร์ Documents และโฟลเดอร์ย่อยทั้งหมด
