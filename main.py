@@ -1,5 +1,6 @@
 import ui
 import console
+import chanafunction
 
 # ฟังก์ชันสำหรับสร้างปุ่มแบบกำหนดเอง
 def create_button(parent_view, y_pos, title, action_func):
@@ -16,12 +17,17 @@ def settings_action(sender):
     try:
         button_index = console.alert('เมนูจัดการ', 'เลือกรายการที่ต้องการ', 'สร้างไฟล์ใหม่', 'จัดการข้อมูล')
         if button_index == 1:
-            print('ไปที่หน้าสร้างไฟล์')
+            menu_action_create()
         elif button_index == 2:
             print('ไปที่หน้าจัดการข้อมูล')
     except Exception as e:
         # ดักกรณีผู้ใช้กด Cancel หรือปิดหน้าต่าง Alert
         print(f"ยกเลิกหรือปิดเมนู: {e}")
+
+def menu_action_create():
+    chanafunction.create_new_file()
+
+# เรียกฟังก์ชันนี้ใน Event ของปุ่มในเมนูของคุณ
 
 
 def main():
