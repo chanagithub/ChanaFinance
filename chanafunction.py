@@ -71,6 +71,7 @@ def create_new_file():
         conn.commit()
         conn.close()
         dialogs.hud_alert(f"สร้างไฟล์ {file_name} เรียบร้อยแล้ว", icon='success')
+        print(f"ไฟล์ฐานข้อมูลถูกสร้างที่: {db_path}")
         
     except Exception as e:
         dialogs.hud_alert("เกิดข้อผิดพลาดในการสร้างไฟล์", icon='error')
