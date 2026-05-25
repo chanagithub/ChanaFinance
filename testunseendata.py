@@ -18,9 +18,9 @@ def test_database_operations():
                       (id INTEGER PRIMARY KEY, description TEXT, amount REAL)''')
 
     # ใส่ข้อมูล 2 เรคคอร์ด
-    cursor.execute("INSERT INTO income (description, amount) VALUES (?, ?)", ("Salary", 50000))
-    cursor.execute("INSERT INTO income (description, amount) VALUES (?, ?)", ("Freelance", 5000))
-    
+    cursor.execute("INSERT INTO income (detail_id, amount) VALUES (?, ?)", (1, 50000))
+    cursor.execute("INSERT INTO income (detail_id, amount) VALUES (?, ?)", (2, 5000))
+
     conn.commit()
     conn.close() # ปิดไฟล์
     print("ใส่ข้อมูล 2 เรคคอร์ดเรียบร้อยและปิดไฟล์แล้ว")
@@ -35,7 +35,7 @@ def test_database_operations():
     
     print("ข้อมูลในตาราง income:")
     for row in rows:
-        print(f"ID: {row[0]}, Description: {row[1]}, Amount: {row[2]}")
+        print(f"ID: {row[0]}, Detail ID: {row[1]}, Amount: {row[2]}")
         
     conn.close()
     print("\nพิสูจน์สำเร็จ: อ่านไฟล์ได้จริง!")
