@@ -36,13 +36,9 @@ def create_new_file():
     # 2. หา Path โฟลเดอร์โครงการ (สมมติชื่อโฟลเดอร์โครงการคือ 'ChanaFinance')
     folder = "ChanaFinance"
     folder_path = get_icloud_path(folder)
-    
-    # 3. สร้างโฟลเดอร์ถ้ายังไม่มี
-    if not os.path.exists(folder_path):
-        os.makedirs(folder_path)
-        
+
     db_path = os.path.join(folder_path, file_name)
-    
+
     # 4. สร้างไฟล์ฐานข้อมูลและตารางต่างๆ
     try:
         conn = sqlite3.connect(db_path)
