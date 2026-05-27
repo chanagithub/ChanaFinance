@@ -1,9 +1,12 @@
+from turtle import title
+
+import file_helper
 import ui
 import console
 import chanafunction
 import os
 import dialogs
-
+from file_helper import pick_db_file    
 # ฟังก์ชันสำหรับสร้างปุ่มแบบกำหนดเอง
 def create_button(parent_view, y_pos, title, action_func):
     btn = ui.Button(title=title)
@@ -39,25 +42,22 @@ def main():
     
     # 2. ใช้ file_picker เพื่อเลือกไฟล์ .db
     # ปรับแต่งให้กรองเฉพาะไฟล์ .db และเลือกได้แค่ไฟล์เดียว
-    selected_file_path = dialogs.file_picker(
-        title='กรุณาเลือกไฟล์ฐานข้อมูล',
-        root_dir=script_dir, # เริ่มต้นที่โฟลเดอร์ของสคริปต์
-        multiple=False,
-        file_types=['.db'] # หรือใช้ ['.db'] ถ้า Pythonista รองรับ
-    )
+    picker = DBFilePicker('Select Database File', script_dir, ['.db'])
+    picker.present('sheet')
+    picker.wait_modal() # รอจนกว่าผู้ใช้จะเลือกไฟล์หรือปิดหน้าต่าง
     
-    # 3. ตรวจสอบว่าผู้ใช้เลือกไฟล์หรือไม่ (ถ้ากด Cancel จะได้ค่าเป็น None)
+    # 3. ดึงค่าไฟล์ที่เลือกได้จากตัว Object 'picker'
+    selected_file_path = picker.selected_file
+    
+    # 4. ตรวจสอบว่าเลือกไฟล์หรือไม่
     if selected_file_path:
-        # พิมพ์บอกใน Console
         print(f"คุณเลือกไฟล์: {selected_file_path}")
-        
-        # เก็บ path ไฟล์ไว้ใช้งานต่อไป (อาจจะทำเป็นตัวแปร global หรือส่งเข้า class)
-        # ต่อไปนี้คือส่วนแสดงหน้า UI เมนูหลักที่คุณมีอยู่แล้ว
+        # นำ path ของไฟล์ไปใช้งานต่อในฟังก์ชันของคุณ
         show_main_menu(selected_file_path)
     else:
         print("ยังไม่ได้เลือกไฟล์ โปรแกรมจะปิดตัวลง")
         return
-
+    
 def show_main_menu(db_path):
     view = ui.View(name='ChanaFinance')
     # ใช้ขนาดหน้าจออุปกรณ์เป็นตัวกำหนด frame ของ view
