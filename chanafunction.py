@@ -35,7 +35,7 @@ def create_new_file():
 
     # 2. หา Path โฟลเดอร์โครงการ (สมมติชื่อโฟลเดอร์โครงการคือ 'ChanaFinance')
     folder = "ChanaFinance"
-    folder_path = get_icloud_path(folder)
+    folder_path = self.script.dir  # ใช้ path ของสคริปต์นี้เป็น base
 
     db_path = os.path.join(folder_path, file_name)
 
