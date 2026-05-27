@@ -1,6 +1,8 @@
 import ui
 import console
 import chanafunction
+import os
+import dialogs
 
 # ฟังก์ชันสำหรับสร้างปุ่มแบบกำหนดเอง
 def create_button(parent_view, y_pos, title, action_func):
@@ -31,6 +33,32 @@ def menu_action_create():
 
 
 def main():
+
+    # 1. กำหนดโฟลเดอร์เริ่มต้นเป็นโฟลเดอร์ของสคริปต์
+    script_dir = os.path.dirname(os.path.abspath(__file__)) 
+    
+    # 2. ใช้ file_picker เพื่อเลือกไฟล์ .db
+    # ปรับแต่งให้กรองเฉพาะไฟล์ .db และเลือกได้แค่ไฟล์เดียว
+    selected_file_path = dialogs.file_picker(
+        title='กรุณาเลือกไฟล์ฐานข้อมูล',
+        root_dir=script_dir, # เริ่มต้นที่โฟลเดอร์ของสคริปต์
+        multiple=False,
+        file_types=['.db'] # หรือใช้ ['.db'] ถ้า Pythonista รองรับ
+    )
+    
+    # 3. ตรวจสอบว่าผู้ใช้เลือกไฟล์หรือไม่ (ถ้ากด Cancel จะได้ค่าเป็น None)
+    if selected_file_path:
+        # พิมพ์บอกใน Console
+        print(f"คุณเลือกไฟล์: {selected_file_path}")
+        
+        # เก็บ path ไฟล์ไว้ใช้งานต่อไป (อาจจะทำเป็นตัวแปร global หรือส่งเข้า class)
+        # ต่อไปนี้คือส่วนแสดงหน้า UI เมนูหลักที่คุณมีอยู่แล้ว
+        show_main_menu(selected_file_path)
+    else:
+        print("ยังไม่ได้เลือกไฟล์ โปรแกรมจะปิดตัวลง")
+        return
+
+def show_main_menu(db_path):
     view = ui.View(name='ChanaFinance')
     # ใช้ขนาดหน้าจออุปกรณ์เป็นตัวกำหนด frame ของ view
     w, h = ui.get_screen_size()

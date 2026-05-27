@@ -35,7 +35,7 @@ def create_new_file():
 
     # 2. หา Path โฟลเดอร์โครงการ (สมมติชื่อโฟลเดอร์โครงการคือ 'ChanaFinance')
     
-    script_dir = os.path.dirname(os.path.abspath(__file__)) #เป็นโฟลเดอร์ที่ โค้ดของเราอยู่
+    #เป็นโฟลเดอร์ที่ โค้ดของเราอยู่
     folder_path = script_dir  # ใช้ path ของสคริปต์นี้เป็น base
 
     db_path = os.path.join(folder_path, file_name)
