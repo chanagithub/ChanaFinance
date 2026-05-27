@@ -46,7 +46,7 @@ def main():
     
     
     # 3. ดึงค่าไฟล์ที่เลือกได้จากตัว Object 'picker'
-    selected_file_path = picker.selected_file
+    selected_file_path = picker
     
     # 4. ตรวจสอบว่าเลือกไฟล์หรือไม่
     if selected_file_path:
