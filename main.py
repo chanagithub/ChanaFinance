@@ -43,8 +43,7 @@ def main():
     # 2. ใช้ file_picker เพื่อเลือกไฟล์ .db
     # ปรับแต่งให้กรองเฉพาะไฟล์ .db และเลือกได้แค่ไฟล์เดียว
     picker = pick_db_file('Select Database File', script_dir, ['.db'])
-    picker.present('sheet')
-    picker.wait_modal() # รอจนกว่าผู้ใช้จะเลือกไฟล์หรือปิดหน้าต่าง
+    
     
     # 3. ดึงค่าไฟล์ที่เลือกได้จากตัว Object 'picker'
     selected_file_path = picker.selected_file
