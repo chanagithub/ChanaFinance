@@ -119,7 +119,3 @@ def find_my_file_path(target_filename):
 
 
 
-# --- ส่วนการใช้งาน ---
-if __name__ == "__main__":
-    # ใส่ชื่อโฟลเดอร์ที่คุณต้องการ เช่น 'ChanaFinance'
-    get_icloud_path("ChanaFinance")
