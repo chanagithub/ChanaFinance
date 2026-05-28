@@ -7,6 +7,8 @@ import ui
 import chanafunction
 import db_manager
 from file_helper import pick_db_file
+import income_entry 
+
 
 
 def create_button(parent_view, y_pos, title, action_func):
@@ -40,7 +42,6 @@ def settings_action(sender, db_path=None):
         else:
             dialogs.hud_alert('ยังไม่ได้เลือกไฟล์ฐานข้อมูล', icon='error')
 
-
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     selected_file_path = pick_db_file('Select Database File', script_dir, ['.db'])
@@ -59,7 +60,7 @@ def show_main_menu(db_path):
     view.background_color = 'white'
 
     buttons = [
-        ('รายรับ', lambda sender: print('รายรับ')),
+        ('รายรับ', lambda sender: income_entry.show(db_path)),    
         ('รายจ่าย', lambda sender: print('รายจ่าย')),
         ('สรุปรายรับ-รายจ่าย/เดือน', lambda sender: print('สรุปรายเดือน')),
         ('สรุปยอดรายปี', lambda sender: print('สรุปรายปี')),
