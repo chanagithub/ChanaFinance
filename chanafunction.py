@@ -104,8 +104,14 @@ def find_my_file_path(target_filename):
     for root, dirs, files in os.walk(start_path):
         if target_filename in files:
             full_path = os.path.join(root, target_filename)
+            try:
+                print ('เข้ามาในเงื่อนไขการลบไฟล์แล้ว')
+                os.remove(full_path)  # ลบไฟล์ทดสอบที่เจอเพื่อความสะดวกในการทดสอบครั้งต่อไป
+                print(f'ไฟล์ที่ลบออกแล้ว: {full_path} ')
+            except Exception as e:
+                print(f"ไม่สามารถลบไฟล์ {full_path} ได้: {e}")
             found_paths.append(full_path)
-            
+
     if found_paths:
         print(f"\n--- พบไฟล์แล้ว {len(found_paths)} ตำแหน่ง ---")
         for path in found_paths:
