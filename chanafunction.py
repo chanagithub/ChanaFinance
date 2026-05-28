@@ -8,6 +8,9 @@ def get_icloud_path(folder_name):
     สร้าง path ไปยังโฟลเดอร์ Pythonista ใน iCloud แบบ Universal
     รองรับทั้ง macOS และ Windows
     """
+
+    #คิดว่าใช้  script_dir  สะดวกกว่า     icloud path  มักมีปัญหา
+    
     system = platform.system()
     home = os.path.expanduser("~")
     
@@ -78,59 +81,7 @@ def create_new_file():
 
     
 
-def find_db_files(startfilenamewith):
-    # ค้นหาในโฟลเดอร์ Documents และโฟลเดอร์ย่อยทั้งหมด
-    folder_path = get_icloud_path("ChanaFinance")  # ปรับชื่อโฟลเดอร์ตามที่คุณใช้จริง
-    print(f"กำลังค้นหาไฟล์ใน: {folder_path} ...")
-    found_paths = []
 
-    for root, dirs, files in os.walk(folder_path):
-        for file in files:
-            if file.startswith(startfilenamewith) and file.endswith(".db"):
-                full_path = os.path.join(root, file)
-                print(f"เจอไฟล์ฐานข้อมูลที่: {full_path}")
-                try:
-                    print ('เข้ามาในเงื่อนไขการลบไฟล์แล้ว')
-                    os.remove(full_path)  # ลบไฟล์ทดสอบที่เจอเพื่อความสะดวกในการทดสอบครั้งต่อไป
-                    print(f'ไฟล์ที่ลบออกแล้ว: {full_path} ')
-                    found_paths.append(full_path)
-                except Exception as e:
-                    print(f"ไม่สามารถลบไฟล์ {full_path} ได้: {e}")+
-    
-    if found_paths:
-        print(f"\n--- พบไฟล์แล้ว {len(found_paths)} ตำแหน่ง ---")
-        for path in found_paths:
-            print(f"Path: {path}")
-    else:
-        print("\nไม่พบไฟล์ดังกล่าวในเครื่องนี้")
-
-
-def find_my_file_path(target_filename):
-    # เริ่มค้นหาจาก root directory ของระบบไฟล์ในแอป Pythonista
-    # (ปกติคือ /var/mobile/Containers/Data/Application/...)
-    start_path = get_icloud_path("ChanaFinance")
-    
-    
-    print(f"กำลังค้นหาไฟล์ '{target_filename}' จาก: {start_path}")
-    print("โปรดรอสักครู่...")
-    
-    found_paths = []
-    
-    # เดินไล่หาไฟล์ทุกโฟลเดอร์ในเครื่อง
-    for root, dirs, files in os.walk(start_path):
-        if target_filename in files:
-            full_path = os.path.join(root, target_filename)
-            
-            
-
-    if found_paths:
-        print(f"\n--- พบไฟล์แล้ว {len(found_paths)} ตำแหน่ง ---")
-        for path in found_paths:
-            print(f"Path: {path}")
-    else:
-        print("\nไม่พบไฟล์ดังกล่าวในเครื่องนี้")
-
-# สั่งค้นหาไฟล์ทดสอบ
 
 
 
