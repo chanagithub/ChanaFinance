@@ -66,16 +66,16 @@ def _insert_item(db_path, table, name):
         conn.close()
 
 
-def _save_income(db_path, date_str, detail_id, category_id, amount, note):
+def _save_income(db_path, date_str, detail_id, detail_text, category_id, amount, note):
     parts = date_str.split("-")
     year, month = int(parts[0]), int(parts[1])
     conn = sqlite3.connect(db_path)
     try:
         cur = conn.cursor()
         cur.execute(
-            "INSERT INTO income (date, year, month, detail_id, category_id, amount, note) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (date_str, year, month, detail_id, category_id, amount, note),
+            "INSERT INTO income (date, year, month, detail_id, detail_text, category_id, amount, note) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (date_str, year, month, detail_id, detail_text, category_id, amount, note),
         )
         conn.commit()
     finally:
@@ -588,13 +588,14 @@ class IncomeForm(ui.View):
             _alert("จำนวนเงินไม่ถูกต้อง")
             return
 
+        detail_id = self._selected_detail_id if self._selected_detail_id is not None else 0
+        detail_text = self._selected_detail_name or ""
         note = self.tf_note.text.strip()
-        if self._selected_detail_id is None and self._selected_detail_name:
-            note = "รายละเอียด: " + self._selected_detail_name + ((" | " + note) if note else "")
         _save_income(
             self.db_path,
             self._date_str,
-            self._selected_detail_id,
+            detail_id,
+            detail_text,
             self._selected_category_id,
             amount,
             note,
@@ -653,7 +654,7 @@ if __name__ == "__main__":
         CREATE TABLE IF NOT EXISTS income (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             date TEXT, year INTEGER, month INTEGER,
-            detail_id INTEGER, category_id INTEGER, amount REAL, note TEXT
+            detail_id INTEGER, detail_text TEXT, category_id INTEGER, amount REAL, note TEXT
         );
         CREATE TABLE IF NOT EXISTS expense (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
