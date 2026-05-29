@@ -41,7 +41,9 @@ class DBFilePicker(ui.View):
 
 def pick_db_file(title, root_dir, file_types):
     picker = DBFilePicker(title, root_dir, file_types)
-    picker.present('sheet')
+    w, h = ui.get_screen_size()
+    picker.frame = (0, 0, w, h)
+    picker.present('full_screen')
     picker.wait_modal()
     return picker.selected_file
 
