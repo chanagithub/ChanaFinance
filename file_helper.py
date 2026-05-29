@@ -20,6 +20,12 @@ class DBFilePicker(ui.View):
         self.table_view.data_source = self
         self.table_view.delegate = self
         self.add_subview(self.table_view)
+
+    def layout(self):
+        # ให้ TableView ขยายเต็มพื้นที่ของ View
+        self.table_view.frame = self.bounds
+
+
         
     def tableview_number_of_rows(self, tv, section):
         return len(self.files)
