@@ -89,11 +89,12 @@ class PickerPopup(ui.View):
     """
 
     def __init__(self, db_path, table, title, on_select, **kwargs):
+        type_filter = kwargs.pop("type_filter", None)
         super().__init__(**kwargs)
         self.db_path = db_path
         self.table = table
         self.on_select = on_select
-        self.all_items = _get_items(db_path, table)  # [(id, name)]
+        self.all_items = _get_items(db_path, table, type_filter)  # [(id, name)]
 
         self.background_color = (0, 0, 0, 0.45)
         self.name = title
@@ -214,7 +215,8 @@ class CalendarPopup(ui.View):
         self.on_date = on_date
         self.background_color = (0, 0, 0, 0.45)
 
-        d = datetime.date.fromisoformat(current_date_str)
+        year, month, day = [int(part) for part in current_date_str.split("-")]
+        d = datetime.date(year, month, day)
         self._year = d.year
         self._month = d.month
 
@@ -412,7 +414,6 @@ class IncomeForm(ui.View):
             btn.background_color = color
             btn.tint_color = "#333333"
             btn.corner_radius = 8
-            btn.content_horizontal_alignment = ui.ALIGN_LEFT
             # ใช้ title_insets เพื่อเว้นซ้าย
             btn.flex = "W"
             self.add_subview(btn)
