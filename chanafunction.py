@@ -86,13 +86,15 @@ def create_tables(db_path):
             CREATE TABLE IF NOT EXISTS income (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 date TEXT, year INTEGER, month INTEGER,
-                detail_id INTEGER, category_id INTEGER, amount REAL, note TEXT
+                detail_id INTEGER,
+                detail_text TEXT, category_id INTEGER, amount REAL, note TEXT
             );
 
             CREATE TABLE IF NOT EXISTS expense (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 date TEXT, year INTEGER, month INTEGER,
-                detail_id INTEGER, category_id INTEGER, payment_type_id INTEGER, amount REAL, note TEXT
+                detail_id INTEGER,
+                detail_text TEXT, category_id INTEGER, payment_type_id INTEGER, amount REAL, note TEXT
             );
         ''')
         conn.commit()

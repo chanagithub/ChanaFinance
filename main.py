@@ -3,7 +3,7 @@ import os
 import console
 import dialogs
 import ui
-
+import sys
 import chanafunction
 import db_manager
 from file_helper import pick_db_file
@@ -44,14 +44,31 @@ def settings_action(sender, db_path=None):
 
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    selected_file_path = pick_db_file('Select Database File', script_dir, ['.db'])
+    db_files = [f for f in os.listdir(script_dir) if f.endswith('.db')]
 
-    if selected_file_path:
-        print('คุณเลือกไฟล์: {}'.format(selected_file_path))
-        show_main_menu(selected_file_path)
+    if not db_files:
+        # ไม่พบไฟล์เลย — แจ้งผู้ใช้และถามว่าจะสร้างใหม่ไหม
+        print('ยังไม่มีไฟล์ข้อมูลเลย คุณต้องสร้างไฟล์ใหม่')
+        confirm = console.alert(
+            'ไม่พบไฟล์ข้อมูล',
+            'ยังไม่มีไฟล์ข้อมูลในระบบ ต้องการสร้างไฟล์ใหม่หรือไม่?',
+            'สร้างไฟล์ใหม่',
+            'ออกจากโปรแกรม',
+            hide_cancel_button=True
+        )
+        if confirm == 1:
+            chanafunction.create_new_file()
+        else:
+            sys.exit(0)
     else:
-        print('ยังไม่ได้เลือกไฟล์ฐานข้อมูล โปรแกรมจะปิดตัวลง')
+        # พบไฟล์ — ให้เลือกไฟล์ตามปกติ
+        selected_file_path = pick_db_file('Select Database File', script_dir, ['.db'])
 
+        if selected_file_path:
+            print('คุณเลือกไฟล์: {}'.format(selected_file_path))
+            show_main_menu(selected_file_path)
+        else:
+            print('ยังไม่ได้เลือกไฟล์ฐานข้อมูล โปรแกรมจะปิดตัวลง')
 
 def show_main_menu(db_path):
     view = ui.View(name='ChanaFinance')
