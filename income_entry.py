@@ -94,6 +94,7 @@ class PickerPopup(ui.View):
 
     def __init__(self, db_path, table, title, on_select, **kwargs):
         type_filter = kwargs.pop("type_filter", None)
+        self.allow_use_text = kwargs.pop("allow_use_text", False)
         super().__init__(**kwargs)
         self.db_path = db_path
         self.table = table
@@ -136,8 +137,27 @@ class PickerPopup(ui.View):
         card.add_subview(self.tv)
 
         # ปุ่มล่าง
-        btn_add = ui.Button(frame=(8, card.height - 40, (card.width - 24) / 2, 36))
-        btn_add.title = "➕ เพิ่มรายการนี้"
+        btn_y = card.height - 40
+        if self.allow_use_text:
+            btn_w = (card.width - 32) / 3
+            btn_use = ui.Button(frame=(8, btn_y, btn_w, 36))
+            btn_use.title = "ใช้ครั้งนี้"
+            btn_use.background_color = "#1976D2"
+            btn_use.tint_color = "white"
+            btn_use.corner_radius = 8
+            btn_use.action = self._use_text
+            btn_use.flex = "W"
+            card.add_subview(btn_use)
+
+            btn_add_x = 16 + btn_w
+            btn_cancel_x = 24 + btn_w * 2
+        else:
+            btn_w = (card.width - 24) / 2
+            btn_add_x = 8
+            btn_cancel_x = 16 + btn_w
+
+        btn_add = ui.Button(frame=(btn_add_x, btn_y, btn_w, 36))
+        btn_add.title = "เพิ่มรายการนี้"
         btn_add.background_color = "#4CAF50"
         btn_add.tint_color = "white"
         btn_add.corner_radius = 8
@@ -145,9 +165,7 @@ class PickerPopup(ui.View):
         btn_add.flex = "W"
         card.add_subview(btn_add)
 
-        btn_cancel = ui.Button(
-            frame=(btn_add.width + 16, card.height - 40, (card.width - 24) / 2, 36)
-        )
+        btn_cancel = ui.Button(frame=(btn_cancel_x, btn_y, btn_w, 36))
         btn_cancel.title = "ยกเลิก"
         btn_cancel.background_color = "#9E9E9E"
         btn_cancel.tint_color = "white"
@@ -184,6 +202,14 @@ class PickerPopup(ui.View):
         else:
             self._filtered = list(self.all_items)
         self.tv.reload()
+
+    def _use_text(self, sender):
+        name = self.search_tf.text.strip()
+        if not name:
+            _alert("กรุณาพิมพ์ชื่อรายการก่อน")
+            return
+        self.on_select(None, name)
+        self.close()
 
     def _add_new(self, sender):
         name = self.search_tf.text.strip()
@@ -384,6 +410,7 @@ class IncomeForm(ui.View):
         self.name = "บันทึกรายรับ"
 
         self._selected_detail_id = None
+        self._selected_detail_name = None
         self._selected_category_id = None
         self._date_str = datetime.date.today().isoformat()
 
@@ -514,12 +541,17 @@ class IncomeForm(ui.View):
             on_select=self._on_detail_selected,
             frame=self.bounds,
             type_filter="รายรับ",
+            allow_use_text=True,
         )
         self.add_subview(popup)
 
     def _on_detail_selected(self, item_id, name):
         self._selected_detail_id = item_id
-        self.btn_detail.title = f"✔  {name}"
+        self._selected_detail_name = name
+        if item_id is None:
+            self.btn_detail.title = f"ใช้ครั้งนี้: {name}"
+        else:
+            self.btn_detail.title = f"✔  {name}"
         self.btn_detail.tint_color = "#1B5E20"
 
     # ── Category Picker ──
@@ -540,7 +572,7 @@ class IncomeForm(ui.View):
 
     # ── Save ──
     def _save(self, sender):
-        if self._selected_detail_id is None:
+        if self._selected_detail_id is None and not self._selected_detail_name:
             _alert("กรุณาเลือกรายละเอียด")
             return
         if self._selected_category_id is None:
@@ -557,6 +589,8 @@ class IncomeForm(ui.View):
             return
 
         note = self.tf_note.text.strip()
+        if self._selected_detail_id is None and self._selected_detail_name:
+            note = "รายละเอียด: " + self._selected_detail_name + ((" | " + note) if note else "")
         _save_income(
             self.db_path,
             self._date_str,
@@ -572,6 +606,7 @@ class IncomeForm(ui.View):
         console.hud_alert("บันทึกสำเร็จ ✓", "success", 1.2)
 
         self._selected_detail_id = None
+        self._selected_detail_name = None
         self._selected_category_id = None
         self._date_str = datetime.date.today().isoformat()
 
