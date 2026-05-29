@@ -119,24 +119,3 @@ def create_new_file():
     except Exception as e:
         dialogs.hud_alert('เกิดข้อผิดพลาดในการสร้างไฟล์', icon='error')
         print(e)
-
-def get_chana_finance_path(folder_name):
-    # 1. รับค่าโฮมไดเรกทอรีของ Pythonista
-    home = os.path.expanduser('~')
-    
-    # 2. กรณีเป็น iOS (iPhone/iPad)
-    if platform.machine().startswith('iP'): # เช็คว่าเป็น iOS
-        # ใน Pythonista, ~/Documents คือที่ที่ iCloud และ Local มาบรรจบกัน
-        base_path = os.path.join(home, 'Documents')
-    elif platform.system() == 'Windows':
-        # กรณีรันบนคอม (macOS/Windows) ให้ใช้ฟังก์ชันที่คุณเขียนไว้เดิม
-        base_path = os.path.join(
-            home,
-            'iCloudDrive/iCloud~com~omz-software~Pythonista3',
-        )
-    else:
-        return 'Unsupported OS'
-
-    target_path = os.path.join(base_path, folder_name)
-    print("Path สำหรับโครงการ '{}':\n{}".format(folder_name, target_path))
-    return target_path

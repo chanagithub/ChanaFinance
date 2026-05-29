@@ -43,8 +43,7 @@ def settings_action(sender, db_path=None):
             dialogs.hud_alert('ยังไม่ได้เลือกไฟล์ฐานข้อมูล', icon='error')
 
 def main():
-    script_dir = chanafunction.get_chana_finance_path("ChanaFinance")
-    #script_dir = os.path.dirname(os.path.abspath(__file__))
+    script_dir = os.path.dirname(os.path.abspath(__file__))
     selected_file_path = pick_db_file('Select Database File', script_dir, ['.db'])
 
     if selected_file_path:
