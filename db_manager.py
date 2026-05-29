@@ -222,6 +222,8 @@ class RecordListDataSource(object):
 class TableManagerView(ui.View):
     def __init__(self, db_path, table_name):
         ui.View.__init__(self)
+        screen_width, screen_height = ui.get_screen_size()
+        self.frame = (0, 0, screen_width, screen_height)
         self.db_path = db_path
         self.table = get_table(table_name)
         self.rows = []
@@ -316,7 +318,8 @@ class TableManagerView(ui.View):
 
 class RecordFormView(ui.View):
     def __init__(self, table, row=None):
-        ui.View.__init__(self, frame=(0, 0, 380, 620))
+        screen_width, screen_height = ui.get_screen_size()
+        ui.View.__init__(self, frame=(0, 0, screen_width, screen_height))
         self.table = table
         self.row = row or {}
         self.result = None
@@ -408,7 +411,7 @@ class RecordFormView(ui.View):
 
 def show_record_form(table, row=None):
     view = RecordFormView(table, row)
-    view.present('sheet')
+    view.present('full_screen')
     view.wait_modal()
     return view.result
 
@@ -416,7 +419,7 @@ def show_record_form(table, row=None):
 def open_table_manager(db_path, table_name):
     ensure_schema(db_path)
     view = TableManagerView(db_path, table_name)
-    view.present('sheet')
+    view.present('full_screen')
     view.wait_modal()
 
 
