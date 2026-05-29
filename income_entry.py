@@ -6,6 +6,10 @@ import ui
 import sqlite3
 import datetime
 
+BORDER_STYLE_ROUNDED = getattr(ui, "INPUT_ROUNDED_RECT", "rounded_rect")
+KEYBOARD_DEFAULT = getattr(ui, "KEYBOARD_DEFAULT", "default")
+KEYBOARD_DECIMAL_PAD = getattr(ui, "KEYBOARD_DECIMAL_PAD", "decimal_pad")
+
 
 # ─────────────────────────────────────────────
 #  Helper: ดึงข้อมูลจาก DB
@@ -118,7 +122,7 @@ class PickerPopup(ui.View):
         # ช่องค้นหา / พิมพ์ใหม่
         self.search_tf = ui.TextField(frame=(8, 50, card.width - 16, 36))
         self.search_tf.placeholder = "ค้นหาหรือพิมพ์รายการใหม่..."
-        self.search_tf.border_style = ui.INPUT_ROUNDED_RECT
+        self.search_tf.border_style = BORDER_STYLE_ROUNDED
         self.search_tf.flex = "W"
         self.search_tf.delegate = self
         card.add_subview(self.search_tf)
@@ -398,10 +402,10 @@ class IncomeForm(ui.View):
             lbl.text_color = "#888888"
             self.add_subview(lbl)
 
-        def make_field(placeholder, y_pos, keyboard=ui.KEYBOARD_DEFAULT):
+        def make_field(placeholder, y_pos, keyboard=KEYBOARD_DEFAULT):
             tf = ui.TextField(frame=(pad, y_pos, W - pad * 2, field_h))
             tf.placeholder = placeholder
-            tf.border_style = ui.INPUT_ROUNDED_RECT
+            tf.border_style = BORDER_STYLE_ROUNDED
             tf.background_color = "white"
             tf.keyboard_type = keyboard
             tf.flex = "W"
@@ -450,9 +454,9 @@ class IncomeForm(ui.View):
         self.remove_subview(self.tf_amount)
         self.tf_amount = ui.TextField(frame=(pad, y, W - pad * 2, field_h))
         self.tf_amount.placeholder = "0.00"
-        self.tf_amount.border_style = ui.INPUT_ROUNDED_RECT
+        self.tf_amount.border_style = BORDER_STYLE_ROUNDED
         self.tf_amount.background_color = "white"
-        self.tf_amount.keyboard_type = ui.KEYBOARD_DECIMAL_PAD
+        self.tf_amount.keyboard_type = KEYBOARD_DECIMAL_PAD
         self.tf_amount.flex = "W"
         self.add_subview(self.tf_amount)
         y += field_h + 16
