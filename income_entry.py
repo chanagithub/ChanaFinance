@@ -452,13 +452,23 @@ class IncomeForm(ui.View):
         self.tf_amount = make_btn("", y, "#FFFFFF")
         # ใช้ TextField แทน
         self.remove_subview(self.tf_amount)
-        self.tf_amount = ui.TextField(frame=(pad, y, W - pad * 2, field_h))
+        next_btn_w = 70
+        self.tf_amount = ui.TextField(frame=(pad, y, W - pad * 2 - next_btn_w - 8, field_h))
         self.tf_amount.placeholder = "0.00"
         self.tf_amount.border_style = BORDER_STYLE_ROUNDED
         self.tf_amount.background_color = "white"
         self.tf_amount.keyboard_type = KEYBOARD_DECIMAL_PAD
         self.tf_amount.flex = "W"
         self.add_subview(self.tf_amount)
+
+        btn_note = ui.Button(frame=(pad + self.tf_amount.width + 8, y, next_btn_w, field_h))
+        btn_note.title = "หมายเหตุ"
+        btn_note.background_color = "#ECEFF1"
+        btn_note.tint_color = "#333333"
+        btn_note.corner_radius = 8
+        btn_note.flex = "L"
+        btn_note.action = self._focus_note
+        self.add_subview(btn_note)
         y += field_h + 16
 
         # ── หมายเหตุ ──
@@ -477,6 +487,10 @@ class IncomeForm(ui.View):
         btn_save.flex = "W"
         btn_save.action = self._save
         self.add_subview(btn_save)
+
+    def _focus_note(self, sender):
+        self.tf_amount.end_editing()
+        self.tf_note.begin_editing()
 
     # ── Calendar ──
     def _open_calendar(self, sender):
