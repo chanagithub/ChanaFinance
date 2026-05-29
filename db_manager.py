@@ -41,6 +41,7 @@ TABLES = [
             ('year', 'ปี', 'integer'),
             ('month', 'เดือน', 'integer'),
             ('detail_id', 'รหัสรายละเอียด', 'integer'),
+            ('detail_text', 'รายละเอียดข้อความ', 'text'),
             ('category_id', 'รหัสหมวดหมู่', 'integer'),
             ('amount', 'จำนวนเงิน', 'real'),
             ('note', 'หมายเหตุ', 'text'),
@@ -54,6 +55,7 @@ TABLES = [
             ('year', 'ปี', 'integer'),
             ('month', 'เดือน', 'integer'),
             ('detail_id', 'รหัสรายละเอียด', 'integer'),
+            ('detail_text', 'รายละเอียดข้อความ', 'text'),
             ('category_id', 'รหัสหมวดหมู่', 'integer'),
             ('payment_type_id', 'รหัสประเภทชำระเงิน', 'integer'),
             ('amount', 'จำนวนเงิน', 'real'),
@@ -88,18 +90,27 @@ def ensure_schema(db_path):
             CREATE TABLE IF NOT EXISTS income (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 date TEXT, year INTEGER, month INTEGER,
-                detail_id INTEGER, category_id INTEGER, amount REAL, note TEXT
+                detail_id INTEGER, detail_text TEXT, category_id INTEGER, amount REAL, note TEXT
             );
 
             CREATE TABLE IF NOT EXISTS expense (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 date TEXT, year INTEGER, month INTEGER,
-                detail_id INTEGER, category_id INTEGER, payment_type_id INTEGER, amount REAL, note TEXT
+                detail_id INTEGER, detail_text TEXT, category_id INTEGER, payment_type_id INTEGER, amount REAL, note TEXT
             );
         ''')
+        ensure_column(conn, 'income', 'detail_text', 'TEXT')
+        ensure_column(conn, 'expense', 'detail_text', 'TEXT')
         conn.commit()
     finally:
         conn.close()
+
+
+def ensure_column(conn, table_name, column_name, column_type):
+    cursor = conn.execute('PRAGMA table_info({})'.format(table_name))
+    existing_columns = [row['name'] for row in cursor.fetchall()]
+    if column_name not in existing_columns:
+        conn.execute('ALTER TABLE {} ADD COLUMN {} {}'.format(table_name, column_name, column_type))
 
 
 def table_names():
@@ -303,42 +314,103 @@ class TableManagerView(ui.View):
             console.alert('ลบข้อมูลไม่สำเร็จ', str(e), 'ตกลง', hide_cancel_button=True)
 
 
-def show_record_form(table, row=None):
-    fields = []
-    detail_type = row.get('type') if row else DETAIL_TYPES[0]
+class RecordFormView(ui.View):
+    def __init__(self, table, row=None):
+        ui.View.__init__(self, frame=(0, 0, 380, 620))
+        self.table = table
+        self.row = row or {}
+        self.result = None
+        self.inputs = {}
+        self.name = 'เพิ่ม{}'.format(table['title']) if row is None else 'แก้ไข{}'.format(table['title'])
+        self.background_color = '#F7F8FA'
 
-    for column, label, value_type in table['columns']:
-        if value_type == 'detail_type':
-            continue
-        fields.append({
-            'type': 'text',
-            'key': column,
-            'title': label,
-            'value': '' if row is None or row.get(column) is None else str(row.get(column)),
-        })
+        self.scroll = ui.ScrollView(frame=self.bounds, flex='WH')
+        self.scroll.background_color = '#F7F8FA'
+        self.add_subview(self.scroll)
+        self.build_fields()
 
-    title = 'เพิ่ม{}'.format(table['title']) if row is None else 'แก้ไข{}'.format(table['title'])
-    result = dialogs.form_dialog(title=title, fields=fields)
-    if result is None:
-        return None
+        self.left_button_items = [
+            ui.ButtonItem(title='ยกเลิก', action=self.cancel)
+        ]
+        self.right_button_items = [
+            ui.ButtonItem(title='บันทึก', action=self.save)
+        ]
 
-    values = {}
-    try:
-        for column, label, value_type in table['columns']:
+    def build_fields(self):
+        pad = 16
+        y = 16
+        label_h = 22
+        field_h = 40
+        width = self.width - (pad * 2)
+
+        for column, label, value_type in self.table['columns']:
+            label_view = ui.Label(frame=(pad, y, width, label_h))
+            label_view.text = label
+            label_view.font = ('<system-bold>', 14)
+            label_view.text_color = '#333333'
+            self.scroll.add_subview(label_view)
+            y += label_h + 4
+
             if value_type == 'detail_type':
-                continue
-            values[column] = coerce_value(result.get(column), value_type)
-    except Exception as e:
-        console.alert('ข้อมูลไม่ถูกต้อง', str(e), 'ตกลง', hide_cancel_button=True)
-        return None
+                button = ui.Button(frame=(pad, y, width, field_h))
+                button.title = self.row.get(column) or DETAIL_TYPES[0]
+                button.background_color = 'white'
+                button.tint_color = '#222222'
+                button.corner_radius = 8
+                button.border_width = 1
+                button.border_color = '#D0D4DA'
+                button.action = self.select_detail_type
+                self.inputs[column] = button
+                self.scroll.add_subview(button)
+            else:
+                text_field = ui.TextField(frame=(pad, y, width, field_h))
+                text_field.text = '' if self.row.get(column) is None else str(self.row.get(column))
+                text_field.placeholder = label
+                text_field.background_color = 'white'
+                text_field.border_style = getattr(ui, 'INPUT_ROUNDED_RECT', 'rounded_rect')
+                text_field.font = ('<system>', 16)
+                if value_type == 'integer':
+                    text_field.keyboard_type = getattr(ui, 'KEYBOARD_NUMBER_PAD', 'number_pad')
+                elif value_type == 'real':
+                    text_field.keyboard_type = getattr(ui, 'KEYBOARD_DECIMAL_PAD', 'decimal_pad')
+                self.inputs[column] = text_field
+                self.scroll.add_subview(text_field)
 
-    if table['name'] == 'detail_master':
+            y += field_h + 14
+
+        self.scroll.content_size = (self.width, y + 20)
+
+    def select_detail_type(self, sender):
         selected = dialogs.list_dialog('เลือกประเภท', DETAIL_TYPES)
-        if selected is None:
-            return None
-        values['type'] = selected
+        if selected:
+            sender.title = selected
 
-    return values
+    def cancel(self, sender):
+        self.close()
+
+    def save(self, sender):
+        values = {}
+        try:
+            for column, label, value_type in self.table['columns']:
+                control = self.inputs[column]
+                if value_type == 'detail_type':
+                    values[column] = control.title
+                else:
+                    values[column] = coerce_value(control.text.strip(), value_type)
+            validate_values(self.table, values)
+        except Exception as e:
+            console.alert('ข้อมูลไม่ถูกต้อง', str(e), 'ตกลง', hide_cancel_button=True)
+            return
+
+        self.result = values
+        self.close()
+
+
+def show_record_form(table, row=None):
+    view = RecordFormView(table, row)
+    view.present('sheet')
+    view.wait_modal()
+    return view.result
 
 
 def open_table_manager(db_path, table_name):
