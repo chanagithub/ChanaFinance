@@ -8,7 +8,7 @@ import chanafunction
 import db_manager
 from file_helper import pick_db_file
 import income_entry 
-
+import expense_entry
 
 
 def create_button(parent_view, y_pos, title, action_func):
@@ -78,7 +78,7 @@ def show_main_menu(db_path):
 
     buttons = [
         ('รายรับ', lambda sender: income_entry.show(db_path)),    
-        ('รายจ่าย', lambda sender: print('รายจ่าย')),
+        ('รายจ่าย', lambda sender: expense_entry.show(db_path)),
         ('สรุปรายรับ-รายจ่าย/เดือน', lambda sender: print('สรุปรายเดือน')),
         ('สรุปยอดรายปี', lambda sender: print('สรุปรายปี')),
         ('ออก', lambda sender: view.close()),
