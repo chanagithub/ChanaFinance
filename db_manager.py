@@ -4,6 +4,7 @@ import sqlite3
 import console
 import dialogs
 import ui
+import data_viewer
 
 
 DETAIL_TYPES = ('รายรับ', 'รายจ่าย')
@@ -244,6 +245,7 @@ class TableManagerView(ui.View):
             ui.ButtonItem(title='ลบ', action=self.delete_selected),
             ui.ButtonItem(title='แก้ไข', action=self.edit_selected),
             ui.ButtonItem(title='เพิ่ม', action=self.add_record),
+            ui.ButtonItem(title='แสดงข้อมูล', action=self.show_data),
         ]
         self.reload()
 
@@ -314,6 +316,21 @@ class TableManagerView(ui.View):
             self.reload()
         except Exception as e:
             console.alert('ลบข้อมูลไม่สำเร็จ', str(e), 'ตกลง', hide_cancel_button=True)
+
+    def show_data(self, sender):
+        viewer = data_viewer.DataViewer(self.db_path)
+        table_name = self.table['name']
+        print(self.table['name'])
+
+        if table_name == 'income':
+            viewer.show_income()
+        elif table_name == 'expense':
+            viewer.show_expense()
+        else:
+            console.alert('ไม่รองรับ', 
+                        f'ยังไม่รองรับการแสดงข้อมูลของตาราง {table_name}', 
+                        'ตกลง', 
+                        hide_cancel_button=True)
 
 
 class RecordFormView(ui.View):
