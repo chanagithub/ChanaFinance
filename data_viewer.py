@@ -8,10 +8,10 @@
 
 import ui
 import sqlite3
+import unicodedata
 
 
-# ---- ความกว้างคอลัมน์ (หน่วย: จำนวนตัวอักษร monospace) ----
-# ปรับได้ตามต้องการ
+# ---- ความกว้างคอลัมน์ (หน่วย: monospace column) ----
 COL_DATE     = 12   # วันที่
 COL_DETAIL   = 22   # รายการ
 COL_CATEGORY = 16   # หมวดหมู่
@@ -21,45 +21,60 @@ COL_NOTE     = 20   # หมายเหตุ
 SEP = " | "         # ตัวคั่นคอลัมน์
 
 
+# -------------------------------------------------------
+# ฟังก์ชันนับความกว้างตัวอักษร (รองรับภาษาไทย)
+# -------------------------------------------------------
+
+def _char_width(ch):
+    """
+    คืนความกว้างของตัวอักษร 1 ตัวในหน่วย monospace column:
+      - Combining characters (สระ/วรรณยุกต์ ทั้งภาษาไทยและ Unicode อื่น) -> 0
+      - ตัวอักษรทั่วไป (รวมถึงตัวอักษรไทยพื้นฐาน) -> 1
+    หมายเหตุ: ใช้ 1 ต่อตัวอักษรไทย เพราะ Menlo/Courier บน iOS
+    render ตัวไทยกว้างเท่า Latin ไม่ใช่ double-width
+    """
+    cat = unicodedata.category(ch)
+    # Mn = Non-spacing mark (สระลอย, วรรณยุกต์)
+    # Mc = Spacing combining mark
+    # Me = Enclosing mark
+    if cat.startswith('M'):
+        return 0
+    return 1
+
+
+def _display_width(s):
+    """นับความกว้างรวมของ string โดยไม่นับ combining characters"""
+    return sum(_char_width(ch) for ch in s)
+
+
 def _pad(text, width, align='left'):
     """
-    ตัด/เติม string ให้ได้ความกว้างที่กำหนด
-    รองรับภาษาไทยโดยนับ byte-width แทน len()
+    ตัด/เติม string ให้ได้ความกว้าง `width` columns
+    กรอง combining characters (สระ/วรรณยุกต์) ออกจากการนับ
+    เพื่อให้คอลัมน์ตรงกันในทุกบรรทัด
     """
     text = str(text) if text is not None else ''
 
-    # นับความกว้างจริงของ string (ภาษาไทย 1 ตัว ≈ 2 unit)
-    def display_width(s):
-        w = 0
-        for ch in s:
-            cp = ord(ch)
-            if 0x0E00 <= cp <= 0x0E7F:   # ช่วง Unicode ภาษาไทย
-                w += 2
-            else:
-                w += 1
-        return w
+    dw = _display_width(text)
 
-    def truncate(s, max_w):
+    # ตัดถ้ายาวเกิน (เหลือที่ไว้ 1 column สำหรับ '...')
+    if dw > width:
         result = ''
         w = 0
-        for ch in s:
-            cp = ord(ch)
-            cw = 2 if 0x0E00 <= cp <= 0x0E7F else 1
-            if w + cw > max_w:
+        for ch in text:
+            cw = _char_width(ch)
+            if cw == 0:
+                # combining character ใส่ได้เสมอ ไม่กระทบความกว้าง
+                result += ch
+                continue
+            if w + cw > width - 1:
                 break
             result += ch
             w += cw
-        return result, w
-
-    dw = display_width(text)
-
-    if dw > width:
-        text, dw = truncate(text, width - 1)
-        text += '…'
-        dw = display_width(text)
+        text = result + '…'
+        dw = _display_width(text)
 
     pad_size = width - dw
-
     if align == 'right':
         return ' ' * pad_size + text
     else:
@@ -82,7 +97,7 @@ def _build_header():
         _pad('หมายเหตุ',  COL_NOTE),
     ]
     header = SEP.join(parts)
-    divider = '-' * len(header)
+    divider = '-' * _display_width(header)
     return header + '\n' + divider
 
 
@@ -163,8 +178,6 @@ class DataViewer:
 
     def __init__(self, db_path):
         self.db_path = db_path
-
-    # ── helpers ──────────────────────────────────────────
 
     def _connect(self):
         return sqlite3.connect(self.db_path)
