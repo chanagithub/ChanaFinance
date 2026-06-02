@@ -353,3 +353,16 @@ class DataViewer:
             conn.close()
         html = _build_html_lookup('หมวดหมู่รายจ่าย', rows, 'ยังไม่มีหมวดหมู่รายจ่าย')
         self._present('หมวดหมู่รายจ่าย', html)
+
+    # -- 6. ประเภทการชำระเงิน -----------------------------------------------
+
+    def show_payment_type(self):
+        conn = self._connect()
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT id, name FROM payment_type ORDER BY name")
+            rows = cur.fetchall()
+        finally:
+            conn.close()
+        html = _build_html_lookup('ประเภทการชำระเงิน', rows, 'ยังไม่มีประเภทการชำระเงิน')
+        self._present('ประเภทการชำระเงิน', html)

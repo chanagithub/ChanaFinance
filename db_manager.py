@@ -317,12 +317,18 @@ class TableManagerView(ui.View):
     def show_data(self, sender):
         viewer = data_viewer.DataViewer(self.db_path)
         table_name = self.table['name']
-        print(self.table['name'])
+        viewer_actions = {
+            'category_income': viewer.show_category_income,
+            'category_expense': viewer.show_category_expense,
+            'payment_type': viewer.show_payment_type,
+            'detail_master': viewer.show_detail_master,
+            'income': viewer.show_income,
+            'expense': viewer.show_expense,
+        }
+        action = viewer_actions.get(table_name)
 
-        if table_name == 'income':
-            viewer.show_income()
-        elif table_name == 'expense':
-            viewer.show_expense()
+        if action:
+            action()
         else:
             console.alert('ไม่รองรับ', 
                         f'ยังไม่รองรับการแสดงข้อมูลของตาราง {table_name}', 
