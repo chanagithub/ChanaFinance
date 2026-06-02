@@ -238,9 +238,6 @@ class TableManagerView(ui.View):
         self.table_view.delegate = self.data_source
         self.add_subview(self.table_view)
 
-        self.left_button_items = [
-            ui.ButtonItem(title='ปิด', action=lambda sender: self.close())
-        ]
         self.right_button_items = [
             ui.ButtonItem(title='ลบ', action=self.delete_selected),
             ui.ButtonItem(title='แก้ไข', action=self.edit_selected),

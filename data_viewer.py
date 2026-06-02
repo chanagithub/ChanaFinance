@@ -8,183 +8,169 @@
 
 import ui
 import sqlite3
-import unicodedata
-
-
-# ---- ความกว้างคอลัมน์ (หน่วย: monospace column) ----
-COL_DATE     = 12   # วันที่
-COL_DETAIL   = 22   # รายการ
-COL_CATEGORY = 16   # หมวดหมู่
-COL_AMOUNT   = 14   # จำนวนเงิน (right-align)
-COL_NOTE     = 20   # หมายเหตุ
-
-SEP = " | "         # ตัวคั่นคอลัมน์
 
 
 # -------------------------------------------------------
-# ฟังก์ชันนับความกว้างตัวอักษร (รองรับภาษาไทย)
+# สร้าง HTML table สำหรับแสดงผล
 # -------------------------------------------------------
 
-# ตัวอักษรที่ unicodedata จัดเป็น combining (category M)
-# แต่ภาษาไทยใช้เป็นตัวอิสระและต้องนับเป็น 1 column
-_THAI_FULL_WIDTH = {
-    '\u0E33',  # ำ (sara am) — พิมพ์เป็นตัวเดี่ยว กินพื้นที่ 1 column
-               # ตัวอย่าง: ทำ, น้ำ, น้ำมัน (้ซ้อนบน ำ ก็ยังนับ ำ=1, ้=0)
-}
-
-
-def _char_width(ch):
-    """
-    คืนความกว้างของตัวอักษร 1 ตัวในหน่วย monospace column:
-      - ตัวใน _THAI_FULL_WIDTH (เช่น ำ) -> 1 เสมอ แม้ unicodedata บอกว่า combining
-      - Combining characters อื่น (สระลอย, วรรณยุกต์) -> 0
-      - ตัวอักษรทั่วไป -> 1
-    หมายเหตุ: ใช้ 1 ต่อตัวอักษรไทย เพราะ Menlo/Courier บน iOS
-    render ตัวไทยกว้างเท่า Latin ไม่ใช่ double-width
-    """
-    if ch in _THAI_FULL_WIDTH:
-        return 1
-    cat = unicodedata.category(ch)
-    # Mn = Non-spacing mark (สระลอย, วรรณยุกต์)
-    # Mc = Spacing combining mark
-    # Me = Enclosing mark
-    if cat.startswith('M'):
-        return 0
-    return 1
-
-
-def _display_width(s):
-    """นับความกว้างรวมของ string โดยไม่นับ combining characters"""
-    return sum(_char_width(ch) for ch in s)
-
-
-def _pad(text, width, align='left'):
-    """
-    ตัด/เติม string ให้ได้ความกว้าง `width` columns
-    กรอง combining characters (สระ/วรรณยุกต์) ออกจากการนับ
-    เพื่อให้คอลัมน์ตรงกันในทุกบรรทัด
-    """
+def _escape(text):
+    """escape HTML special characters"""
     text = str(text) if text is not None else ''
+    text = text.strip()
+    text = text.replace('&', '&amp;')
+    text = text.replace('<', '&lt;')
+    text = text.replace('>', '&gt;')
+    return text
 
-    dw = _display_width(text)
 
-    # ตัดถ้ายาวเกิน (เหลือที่ไว้ 1 column สำหรับ '...')
-    if dw > width:
-        result = ''
-        w = 0
-        for ch in text:
-            cw = _char_width(ch)
-            if cw == 0:
-                # combining character ใส่ได้เสมอ ไม่กระทบความกว้าง
-                result += ch
-                continue
-            if w + cw > width - 1:
-                break
-            result += ch
-            w += cw
-        text = result + '…'
-        dw = _display_width(text)
+def _build_html(title, rows, empty_msg):
+    """
+    สร้าง HTML page แสดงข้อมูลเป็นตาราง
+    rows = list of (date, detail, category, amount, note)
+    """
+    # สร้างแถวข้อมูล
+    if rows:
+        row_html = ''
+        for i, (date, detail, category, amount, note) in enumerate(rows):
+            try:
+                amount_str = f"{float(amount):,.2f}"
+            except (TypeError, ValueError):
+                amount_str = ''
 
-    pad_size = width - dw
-    if align == 'right':
-        return ' ' * pad_size + text
+            stripe = 'class="stripe"' if i % 2 == 1 else ''
+            row_html += f'''
+            <tr {stripe}>
+                <td class="date">{_escape(date)}</td>
+                <td class="detail">{_escape(detail)}</td>
+                <td class="category">{_escape(category)}</td>
+                <td class="amount">{amount_str}</td>
+                <td class="note">{_escape(note)}</td>
+            </tr>'''
+        record_count = len(rows)
     else:
-        return text + ' ' * pad_size
+        row_html = f'<tr><td colspan="5" class="empty">{empty_msg}</td></tr>'
+        record_count = 0
 
+    html = f'''<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
 
-def _format_amount(amount):
-    try:
-        return f"{float(amount):>13,.2f}"
-    except (TypeError, ValueError):
-        return _pad('', COL_AMOUNT)
+  body {{
+    background: #1c1c1e;
+    color: #e5e5ea;
+    font-family: -apple-system, "Helvetica Neue", sans-serif;
+    font-size: 14px;
+    padding: 8px;
+  }}
 
+  h2 {{
+    text-align: center;
+    font-size: 17px;
+    font-weight: bold;
+    padding: 10px 0 12px 0;
+    color: #ffffff;
+  }}
 
-def _build_header():
-    parts = [
-        _pad('วันที่',     COL_DATE),
-        _pad('รายการ',    COL_DETAIL),
-        _pad('หมวดหมู่',  COL_CATEGORY),
-        _pad('จำนวนเงิน', COL_AMOUNT, 'right'),
-        _pad('หมายเหตุ',  COL_NOTE),
-    ]
-    header = SEP.join(parts)
-    divider = '-' * _display_width(header)
-    return header + '\n' + divider
+  .table-wrap {{
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 8px;
+  }}
 
+  table {{
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 560px;
+    background: #2c2c2e;
+  }}
 
-def _build_row(date, detail, category, amount, note):
-    # strip ทุก text field หลังอ่านจาก DB เพื่อความแน่ใจ
-    date     = (date     or '').strip()
-    detail   = (detail   or '').strip()
-    category = (category or '').strip()
-    note     = (note     or '').strip()
-    parts = [
-        _pad(date,     COL_DATE),
-        _pad(detail,   COL_DETAIL),
-        _pad(category, COL_CATEGORY),
-        _format_amount(amount),
-        _pad(note,     COL_NOTE),
-    ]
-    return SEP.join(parts)
+  thead tr {{
+    background: #3a3a3c;
+    border-bottom: 2px solid #555;
+  }}
+
+  th {{
+    padding: 10px 10px;
+    text-align: left;
+    font-size: 13px;
+    color: #ebebf5cc;
+    white-space: nowrap;
+  }}
+
+  th.amount {{ text-align: right; }}
+
+  td {{
+    padding: 8px 10px;
+    vertical-align: top;
+    border-bottom: 1px solid #3a3a3c;
+    font-size: 14px;
+    color: #e5e5ea;
+  }}
+
+  tr.stripe td {{ background: #323234; }}
+
+  td.date     {{ white-space: nowrap; color: #98989f; font-size: 13px; }}
+  td.amount   {{ text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }}
+  td.note     {{ color: #98989f; font-size: 13px; }}
+  td.empty    {{ text-align: center; padding: 24px; color: #636366; }}
+
+  .footer {{
+    text-align: center;
+    padding: 12px 0 6px 0;
+    font-size: 12px;
+    color: #636366;
+  }}
+</style>
+</head>
+<body>
+  <h2>{_escape(title)}</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>วันที่</th>
+          <th>รายการ</th>
+          <th>หมวดหมู่</th>
+          <th class="amount">จำนวนเงิน</th>
+          <th>หมายเหตุ</th>
+        </tr>
+      </thead>
+      <tbody>
+        {row_html}
+      </tbody>
+    </table>
+  </div>
+  <div class="footer">ทั้งหมด {record_count} รายการ</div>
+</body>
+</html>'''
+    return html
 
 
 # -------------------------------------------------------
-# ResultView — หน้าต่างแสดงผล fullscreen
+# ResultView — หน้าต่างแสดงผล fullscreen ใช้ WebView
 # -------------------------------------------------------
 class _ResultView(ui.View):
 
-    def __init__(self, title, content_text):
+    def __init__(self, title, html):
         super().__init__()
         self.name = title
         self.background_color = '#1c1c1e'
 
-        # --- Title bar ---
-        title_lbl = ui.Label()
-        title_lbl.text = title
-        title_lbl.font = ('<system-bold>', 17)
-        title_lbl.text_color = 'white'
-        title_lbl.alignment = ui.ALIGN_CENTER
-        title_lbl.flex = 'W'
-        self.add_subview(title_lbl)
-        self._title_lbl = title_lbl
+        wv = ui.WebView()
+        wv.flex = 'WH'
+        wv.scales_page_to_fit = False
+        self.add_subview(wv)
+        self._wv = wv
 
-        # --- TextView ---
-        tv = ui.TextView()
-        tv.text = content_text
-        tv.font = ('Menlo', 11)
-        tv.text_color = '#e5e5ea'
-        tv.background_color = '#2c2c2e'
-        tv.editable = False
-        tv.flex = 'WH'
-        self.add_subview(tv)
-        self._tv = tv
-
-        # --- Record count label ---
-        count_lbl = ui.Label()
-        count_lbl.font = ('<system>', 12)
-        count_lbl.text_color = '#8e8e93'
-        count_lbl.alignment = ui.ALIGN_CENTER
-        count_lbl.flex = 'W'
-        self.add_subview(count_lbl)
-        self._count_lbl = count_lbl
-
-        # นับจำนวน record (บรรทัดที่ไม่ใช่ header, divider, หรือว่าง)
-        lines = [l for l in content_text.splitlines()
-                 if l.strip() and not l.startswith('-')]
-        record_count = max(0, len(lines) - 1)   # ลบ header 1 บรรทัด
-        count_lbl.text = f'ทั้งหมด {record_count} รายการ'
+        wv.load_html(html)
 
     def layout(self):
-        W, H = self.width, self.height
-        margin = 12
-        title_h = 44
-        count_h = 28
-
-        self._title_lbl.frame = (0, 0, W, title_h)
-        self._count_lbl.frame = (0, H - count_h, W, count_h)
-        self._tv.frame = (margin, title_h + 4,
-                          W - margin * 2,
-                          H - title_h - count_h - 8)
+        self._wv.frame = self.bounds
 
 
 # -------------------------------------------------------
@@ -198,9 +184,8 @@ class DataViewer:
     def _connect(self):
         return sqlite3.connect(self.db_path)
 
-    def _present(self, title, lines):
-        content = '\n'.join(lines)
-        v = _ResultView(title, content)
+    def _present(self, title, html):
+        v = _ResultView(title, html)
         v.present('fullscreen', animated=True)
 
     # ── 1. แสดงรายรับทั้งหมด ─────────────────────────────
@@ -224,14 +209,8 @@ class DataViewer:
         finally:
             conn.close()
 
-        lines = [_build_header()]
-        if rows:
-            for date, detail, category, amount, note in rows:
-                lines.append(_build_row(date, detail, category, amount, note))
-        else:
-            lines.append('  (ยังไม่มีข้อมูลรายรับ)')
-
-        self._present('รายรับทั้งหมด', lines)
+        html = _build_html('รายรับทั้งหมด', rows, 'ยังไม่มีข้อมูลรายรับ')
+        self._present('รายรับทั้งหมด', html)
 
     # ── 2. แสดงรายจ่ายทั้งหมด ────────────────────────────
 
@@ -254,14 +233,8 @@ class DataViewer:
         finally:
             conn.close()
 
-        lines = [_build_header()]
-        if rows:
-            for date, detail, category, amount, note in rows:
-                lines.append(_build_row(date, detail, category, amount, note))
-        else:
-            lines.append('  (ยังไม่มีข้อมูลรายจ่าย)')
-
-        self._present('รายจ่ายทั้งหมด', lines)
+        html = _build_html('รายจ่ายทั้งหมด', rows, 'ยังไม่มีข้อมูลรายจ่าย')
+        self._present('รายจ่ายทั้งหมด', html)
 
     # ── 3-5. สำรองไว้สำหรับ function ถัดไป ───────────────
 
