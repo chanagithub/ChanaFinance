@@ -113,6 +113,11 @@ def _build_header():
 
 
 def _build_row(date, detail, category, amount, note):
+    # strip ทุก text field หลังอ่านจาก DB เพื่อความแน่ใจ
+    date     = (date     or '').strip()
+    detail   = (detail   or '').strip()
+    category = (category or '').strip()
+    note     = (note     or '').strip()
     parts = [
         _pad(date,     COL_DATE),
         _pad(detail,   COL_DETAIL),

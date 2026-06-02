@@ -16,11 +16,6 @@ KEYBOARD_DECIMAL_PAD = getattr(ui, "KEYBOARD_DECIMAL_PAD", "decimal_pad")
 # ─────────────────────────────────────────────
 
 def _get_items(db_path, table, type_filter=None):
-    """
-    ดึง (id, name) จากตาราง
-    - table = 'detail_master' : ใช้ column detail_name และกรอง type ได้
-    - ตารางอื่น               : ใช้ column name ตามปกติ
-    """
     conn = sqlite3.connect(db_path)
     try:
         cur = conn.cursor()
@@ -34,17 +29,13 @@ def _get_items(db_path, table, type_filter=None):
                 cur.execute("SELECT id, detail_name FROM detail_master ORDER BY detail_name")
         else:
             cur.execute(f"SELECT id, name FROM {table} ORDER BY name")
-        return cur.fetchall()  # [(id, name), ...]
+        return cur.fetchall()
     finally:
         conn.close()
 
 
 def _insert_item(db_path, table, name):
-    """
-    เพิ่มรายการใหม่
-    - table = 'detail_master' : insert พร้อม type = 'รายรับ'
-    - ตารางอื่น               : insert ปกติ
-    """
+    name = name.strip()   # strip ก่อน insert เสมอ
     conn = sqlite3.connect(db_path)
     try:
         cur = conn.cursor()
@@ -67,6 +58,10 @@ def _insert_item(db_path, table, name):
 
 
 def _save_income(db_path, date_str, detail_id, detail_text, category_id, amount, note):
+    # strip ทุก text field ก่อน insert
+    detail_text = (detail_text or '').strip()
+    note        = (note or '').strip()
+
     parts = date_str.split("-")
     year, month = int(parts[0]), int(parts[1])
     conn = sqlite3.connect(db_path)
@@ -83,14 +78,10 @@ def _save_income(db_path, date_str, detail_id, detail_text, category_id, amount,
 
 
 # ─────────────────────────────────────────────
-#  Picker Popup (TableView ลอยอยู่บน View หลัก)
+#  Picker Popup
 # ─────────────────────────────────────────────
 
 class PickerPopup(ui.View):
-    """
-    Popup สำหรับเลือกรายการหรือพิมพ์รายการใหม่
-    on_select(id, name) จะถูกเรียกเมื่อผู้ใช้เลือก/สร้างรายการ
-    """
 
     def __init__(self, db_path, table, title, on_select, **kwargs):
         type_filter = kwargs.pop("type_filter", None)
@@ -99,19 +90,17 @@ class PickerPopup(ui.View):
         self.db_path = db_path
         self.table = table
         self.on_select = on_select
-        self.all_items = _get_items(db_path, table, type_filter)  # [(id, name)]
+        self.all_items = _get_items(db_path, table, type_filter)
 
         self.background_color = (0, 0, 0, 0.45)
         self.name = title
 
-        # กล่องกลาง
         card = ui.View(frame=(20, 80, self.width - 40, self.height - 160))
         card.background_color = "white"
         card.corner_radius = 12
         card.flex = "WH"
         self.add_subview(card)
 
-        # หัวข้อ
         lbl = ui.Label(frame=(0, 0, card.width, 44))
         lbl.text = title
         lbl.font = ("<system-bold>", 17)
@@ -120,7 +109,6 @@ class PickerPopup(ui.View):
         lbl.flex = "W"
         card.add_subview(lbl)
 
-        # ช่องค้นหา / พิมพ์ใหม่
         self.search_tf = ui.TextField(frame=(8, 50, card.width - 16, 36))
         self.search_tf.placeholder = "ค้นหาหรือพิมพ์รายการใหม่..."
         self.search_tf.border_style = BORDER_STYLE_ROUNDED
@@ -128,7 +116,6 @@ class PickerPopup(ui.View):
         self.search_tf.delegate = self
         card.add_subview(self.search_tf)
 
-        # TableView
         self.tv = ui.TableView(frame=(0, 94, card.width, card.height - 94 - 44))
         self.tv.flex = "WH"
         self.tv.data_source = self
@@ -136,7 +123,6 @@ class PickerPopup(ui.View):
         self.tv.separator_color = "#eeeeee"
         card.add_subview(self.tv)
 
-        # ปุ่มล่าง
         btn_y = card.height - 40
         if self.allow_use_text:
             btn_w = (card.width - 32) / 3
@@ -148,7 +134,6 @@ class PickerPopup(ui.View):
             btn_use.action = self._use_text
             btn_use.flex = "W"
             card.add_subview(btn_use)
-
             btn_add_x = 16 + btn_w
             btn_cancel_x = 24 + btn_w * 2
         else:
@@ -177,7 +162,6 @@ class PickerPopup(ui.View):
         self.card = card
         self._filtered = list(self.all_items)
 
-    # --- TableView DataSource ---
     def tableview_number_of_rows(self, tv, section):
         return len(self._filtered)
 
@@ -191,7 +175,6 @@ class PickerPopup(ui.View):
         self.on_select(item[0], item[1])
         self.close()
 
-    # --- TextField Delegate ---
     def textfield_should_change(self, tf, range_, replacement):
         return True
 
@@ -235,10 +218,6 @@ class PickerPopup(ui.View):
 # ─────────────────────────────────────────────
 
 class CalendarPopup(ui.View):
-    """
-    ปฏิทินแบบง่าย: เลือกปี/เดือน แล้วแตะวัน
-    on_date(date_str "YYYY-MM-DD") จะถูกเรียก
-    """
 
     def __init__(self, current_date_str, on_date, **kwargs):
         super().__init__(**kwargs)
@@ -265,27 +244,23 @@ class CalendarPopup(ui.View):
 
     def _build_header(self):
         card = self.card
-        # ปุ่ม <
         btn_prev = ui.Button(frame=(0, 0, 44, 44))
         btn_prev.title = "‹"
         btn_prev.font = ("<system-bold>", 24)
         btn_prev.action = self._prev_month
         card.add_subview(btn_prev)
 
-        # ป้ายเดือน/ปี
         self.lbl_month = ui.Label(frame=(44, 0, card.width - 88, 44))
         self.lbl_month.alignment = ui.ALIGN_CENTER
         self.lbl_month.font = ("<system-bold>", 16)
         card.add_subview(self.lbl_month)
 
-        # ปุ่ม >
         btn_next = ui.Button(frame=(card.width - 44, 0, 44, 44))
         btn_next.title = "›"
         btn_next.font = ("<system-bold>", 24)
         btn_next.action = self._next_month
         card.add_subview(btn_next)
 
-        # วันในสัปดาห์
         days = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"]
         cell_w = self.card.width / 7
         for i, d in enumerate(days):
@@ -296,7 +271,6 @@ class CalendarPopup(ui.View):
             lbl.text_color = "#888888"
             self.card.add_subview(lbl)
 
-        # ปุ่มยกเลิก
         btn_cancel = ui.Button(frame=(0, self.card.height - 36, self.card.width, 36))
         btn_cancel.title = "ยกเลิก"
         btn_cancel.tint_color = "#9E9E9E"
@@ -322,7 +296,7 @@ class CalendarPopup(ui.View):
         self._day_btns = []
 
         first = datetime.date(self._year, self._month, 1)
-        start_wd = first.weekday()  # Monday=0; we want Sunday=0
+        start_wd = first.weekday()
         start_wd = (start_wd + 1) % 7
 
         import calendar
@@ -330,7 +304,7 @@ class CalendarPopup(ui.View):
 
         cell_w = self.card.width / 7
         cell_h = 36
-        row_y_start = 72  # after header row + weekday row
+        row_y_start = 72
         today = datetime.date.today()
 
         for day in range(1, days_in_month + 1):
@@ -445,12 +419,10 @@ class IncomeForm(ui.View):
             btn.background_color = color
             btn.tint_color = "#333333"
             btn.corner_radius = 8
-            # ใช้ title_insets เพื่อเว้นซ้าย
             btn.flex = "W"
             self.add_subview(btn)
             return btn
 
-        # ── วันที่ ──
         section_label("วันที่", y)
         y += 24
         self.btn_date = make_btn(f"📅  {self._date_str}", y, "#FFFFFF")
@@ -459,25 +431,21 @@ class IncomeForm(ui.View):
         self.btn_date.action = self._open_calendar
         y += field_h + 16
 
-        # ── รายละเอียด ──
         section_label("รายละเอียด", y)
         y += 24
         self.btn_detail = make_btn("แตะเพื่อเลือกรายละเอียด...", y)
         self.btn_detail.action = self._open_detail_picker
         y += field_h + 16
 
-        # ── หมวดหมู่ ──
         section_label("หมวดหมู่", y)
         y += 24
         self.btn_category = make_btn("แตะเพื่อเลือกหมวดหมู่...", y)
         self.btn_category.action = self._open_category_picker
         y += field_h + 16
 
-        # ── จำนวนเงิน ──
         section_label("จำนวนเงิน (บาท)", y)
         y += 24
         self.tf_amount = make_btn("", y, "#FFFFFF")
-        # ใช้ TextField แทน
         self.remove_subview(self.tf_amount)
         next_btn_w = 70
         self.tf_amount = ui.TextField(frame=(pad, y, W - pad * 2 - next_btn_w - 8, field_h))
@@ -498,13 +466,11 @@ class IncomeForm(ui.View):
         self.add_subview(btn_note)
         y += field_h + 16
 
-        # ── หมายเหตุ ──
         section_label("หมายเหตุ (ถ้ามี)", y)
         y += 24
         self.tf_note = make_field("หมายเหตุ...", y)
         y += field_h + 24
 
-        # ── ปุ่ม Save ──
         btn_save = ui.Button(frame=(pad, y, W - pad * 2, 50))
         btn_save.title = "💾  บันทึกรายรับ"
         btn_save.background_color = "#43A047"
@@ -519,7 +485,6 @@ class IncomeForm(ui.View):
         self.tf_amount.end_editing()
         self.tf_note.begin_editing()
 
-    # ── Calendar ──
     def _open_calendar(self, sender):
         popup = CalendarPopup(
             self._date_str,
@@ -532,7 +497,6 @@ class IncomeForm(ui.View):
         self._date_str = date_str
         self.btn_date.title = f"📅  {date_str}"
 
-    # ── Detail Picker ──
     def _open_detail_picker(self, sender):
         popup = PickerPopup(
             self.db_path,
@@ -547,14 +511,13 @@ class IncomeForm(ui.View):
 
     def _on_detail_selected(self, item_id, name):
         self._selected_detail_id = item_id
-        self._selected_detail_name = name
+        self._selected_detail_name = name.strip()   # strip เมื่อรับค่า
         if item_id is None:
             self.btn_detail.title = f"ใช้ครั้งนี้: {name}"
         else:
             self.btn_detail.title = f"✔  {name}"
         self.btn_detail.tint_color = "#1B5E20"
 
-    # ── Category Picker ──
     def _open_category_picker(self, sender):
         popup = PickerPopup(
             self.db_path,
@@ -570,7 +533,6 @@ class IncomeForm(ui.View):
         self.btn_category.title = f"✔  {name}"
         self.btn_category.tint_color = "#1B5E20"
 
-    # ── Save ──
     def _save(self, sender):
         if self._selected_detail_id is None and not self._selected_detail_name:
             _alert("กรุณาเลือกรายละเอียด")
@@ -588,9 +550,10 @@ class IncomeForm(ui.View):
             _alert("จำนวนเงินไม่ถูกต้อง")
             return
 
-        detail_id = self._selected_detail_id if self._selected_detail_id is not None else 0
-        detail_text = self._selected_detail_name or ""
-        note = self.tf_note.text.strip()
+        detail_id   = self._selected_detail_id if self._selected_detail_id is not None else 0
+        detail_text = (self._selected_detail_name or '').strip()
+        note        = self.tf_note.text.strip()
+
         _save_income(
             self.db_path,
             self._date_str,
@@ -625,22 +588,13 @@ class IncomeForm(ui.View):
 # ─────────────────────────────────────────────
 
 def show(db_path: str):
-    """
-    เรียกฟังก์ชันนี้พร้อมส่ง path ของไฟล์ฐานข้อมูล
-    ตัวอย่าง:
-        import income_entry
-        income_entry.show('/path/to/mydb.sqlite')
-    """
     form = IncomeForm(db_path, frame=(0, 0, 375, 700))
     form.present("sheet")
 
 
-# ── ทดสอบ standalone ──
 if __name__ == "__main__":
     import os
     TEST_DB = os.path.expanduser("~/Documents/test_finance.sqlite")
-
-    # สร้างตารางทดสอบถ้ายังไม่มี
     conn = sqlite3.connect(TEST_DB)
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS category_income (id INTEGER PRIMARY KEY, name TEXT UNIQUE);
@@ -667,5 +621,4 @@ if __name__ == "__main__":
     """)
     conn.commit()
     conn.close()
-
     show(TEST_DB)
