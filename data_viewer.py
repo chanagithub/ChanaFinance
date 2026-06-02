@@ -25,14 +25,25 @@ SEP = " | "         # ตัวคั่นคอลัมน์
 # ฟังก์ชันนับความกว้างตัวอักษร (รองรับภาษาไทย)
 # -------------------------------------------------------
 
+# ตัวอักษรที่ unicodedata จัดเป็น combining (category M)
+# แต่ภาษาไทยใช้เป็นตัวอิสระและต้องนับเป็น 1 column
+_THAI_FULL_WIDTH = {
+    '\u0E33',  # ำ (sara am) — พิมพ์เป็นตัวเดี่ยว กินพื้นที่ 1 column
+               # ตัวอย่าง: ทำ, น้ำ, น้ำมัน (้ซ้อนบน ำ ก็ยังนับ ำ=1, ้=0)
+}
+
+
 def _char_width(ch):
     """
     คืนความกว้างของตัวอักษร 1 ตัวในหน่วย monospace column:
-      - Combining characters (สระ/วรรณยุกต์ ทั้งภาษาไทยและ Unicode อื่น) -> 0
-      - ตัวอักษรทั่วไป (รวมถึงตัวอักษรไทยพื้นฐาน) -> 1
+      - ตัวใน _THAI_FULL_WIDTH (เช่น ำ) -> 1 เสมอ แม้ unicodedata บอกว่า combining
+      - Combining characters อื่น (สระลอย, วรรณยุกต์) -> 0
+      - ตัวอักษรทั่วไป -> 1
     หมายเหตุ: ใช้ 1 ต่อตัวอักษรไทย เพราะ Menlo/Courier บน iOS
     render ตัวไทยกว้างเท่า Latin ไม่ใช่ double-width
     """
+    if ch in _THAI_FULL_WIDTH:
+        return 1
     cat = unicodedata.category(ch)
     # Mn = Non-spacing mark (สระลอย, วรรณยุกต์)
     # Mc = Spacing combining mark
