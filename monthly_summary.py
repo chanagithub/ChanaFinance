@@ -435,7 +435,7 @@ class _SummaryView(ui.View):
         self.tf_month.keyboard_type    = KB_NUMBER_PAD
         self.tf_month.border_style     = BORDER_ROUNDED
         self.tf_month.background_color = '#22222c'
-        self.tf_month.text_color       = '#f0f0f5'
+        self.tf_month.text_color       = '#000000'
         self.tf_month.font             = ('<system>', 16)
         self.tf_month.frame            = (ox + 28, 124, sw - 56, 40)
         self.add_subview(self.tf_month)
@@ -453,7 +453,7 @@ class _SummaryView(ui.View):
         self.tf_year.keyboard_type    = KB_NUMBER_PAD
         self.tf_year.border_style     = BORDER_ROUNDED
         self.tf_year.background_color = '#22222c'
-        self.tf_year.text_color       = '#f0f0f5'
+        self.tf_year.text_color       = '#000000'
         self.tf_year.font             = ('<system>', 16)
         self.tf_year.frame            = (ox + 28, 198, sw - 56, 40)
         self.add_subview(self.tf_year)
