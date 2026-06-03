@@ -8,6 +8,10 @@ import ui
 import sqlite3
 import datetime
 
+# ── ค่าคงที่ที่อาจไม่มีใน Pythonista บางเวอร์ชัน ──────────────
+BORDER_ROUNDED  = getattr(ui, 'INPUT_ROUNDED_RECT', 3)
+KB_NUMBER_PAD   = getattr(ui, 'KEYBOARD_NUMBER_PAD', 'number-pad')
+
 CLINIC_INCOME_NAME  = 'รายรับของคลินิก'
 CLINIC_EXPENSE_NAME = 'รายจ่ายของคลินิก'
 
@@ -385,15 +389,20 @@ class _SummaryView(ui.View):
 
     def __init__(self, db_path):
         super().__init__()
-        self.db_path = db_path
-        self.name    = 'สรุปรายเดือน'
+        self.db_path   = db_path
+        self.name      = 'สรุปรายเดือน'
         self.background_color = '#0f0f13'
-        self._build_ui()
+        self._built    = False  # guard ไม่ให้ build ซ้ำ
+
+    def layout(self):
+        if not self._built:
+            self._built = True
+            self._build_ui()
 
     def _build_ui(self):
-        W, H = ui.get_screen_size()
-        sw   = min(W, 500)
-        ox   = (W - sw) / 2
+        W  = self.width
+        sw = min(W, 500)
+        ox = (W - sw) / 2
 
         now = datetime.date.today()
 
@@ -423,8 +432,8 @@ class _SummaryView(ui.View):
 
         self.tf_month = ui.TextField()
         self.tf_month.text             = str(now.month)
-        self.tf_month.keyboard_type    = ui.KEYBOARD_NUMBER_PAD
-        self.tf_month.border_style     = ui.INPUT_ROUNDED_RECT
+        self.tf_month.keyboard_type    = KB_NUMBER_PAD
+        self.tf_month.border_style     = BORDER_ROUNDED
         self.tf_month.background_color = '#22222c'
         self.tf_month.text_color       = '#f0f0f5'
         self.tf_month.font             = ('<system>', 16)
@@ -441,8 +450,8 @@ class _SummaryView(ui.View):
 
         self.tf_year = ui.TextField()
         self.tf_year.text             = str(now.year)
-        self.tf_year.keyboard_type    = ui.KEYBOARD_NUMBER_PAD
-        self.tf_year.border_style     = ui.INPUT_ROUNDED_RECT
+        self.tf_year.keyboard_type    = KB_NUMBER_PAD
+        self.tf_year.border_style     = BORDER_ROUNDED
         self.tf_year.background_color = '#22222c'
         self.tf_year.text_color       = '#f0f0f5'
         self.tf_year.font             = ('<system>', 16)
@@ -519,5 +528,7 @@ class _ResultView(ui.View):
 # ─────────────────────────────────────────────────────────────
 
 def show(db_path):
+    W, H = ui.get_screen_size()
     v = _SummaryView(db_path)
+    v.frame = (0, 0, W, H)
     v.present('fullscreen', animated=True)
