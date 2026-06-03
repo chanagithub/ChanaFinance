@@ -351,7 +351,7 @@ def _build_html(data):
     <div class="card-dot dot-normal"></div>
     <div>
       <div class="card-title">ภาพรวมทั่วไป</div>
-      <div class="card-sub">ไม่รวมรายรับ-รายจ่ายของคลินิก</div>
+      <div class="card-sub" style="color: var(--clinic-gold);">ไม่รวมรายรับ-รายจ่ายของคลินิก</div>
     </div>
   </div>
   <div class="table-wrap">
@@ -378,7 +378,7 @@ def _build_html(data):
     <div class="card-dot dot-clinic"></div>
     <div>
       <div class="card-title" style="color: var(--clinic-gold);">คลินิก</div>
-      <div class="card-sub">เฉพาะรายรับ-รายจ่ายของคลินิก</div>
+      <div class="card-sub" style="color: var(--clinic-gold);">เฉพาะรายรับ-รายจ่ายของคลินิก</div>
     </div>
   </div>
   <div class="table-wrap">
