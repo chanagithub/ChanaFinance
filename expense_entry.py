@@ -5,6 +5,7 @@
 import ui
 import sqlite3
 import datetime
+import console
 
 BORDER_STYLE_ROUNDED = getattr(ui, "INPUT_ROUNDED_RECT", "rounded_rect")
 KEYBOARD_DEFAULT     = getattr(ui, "KEYBOARD_DEFAULT",     "default")
@@ -78,14 +79,15 @@ def _save_expense(db_path, date_str, detail_id, detail_text,
 
 
 # ─────────────────────────────────────────────
-#  Picker Popup
+#  Picker Popup (แก้ไขให้รองรับ auto_close)
 # ─────────────────────────────────────────────
 
 class PickerPopup(ui.View):
 
-    def __init__(self, db_path, table, title, on_select, **kwargs):
+    def __init__(self, db_path, table, title, on_select, auto_close=True, **kwargs):
         type_filter         = kwargs.pop("type_filter", None)
         self.allow_use_text = kwargs.pop("allow_use_text", False)
+        self.auto_close     = auto_close
         super().__init__(**kwargs)
 
         self.db_path   = db_path
@@ -185,10 +187,8 @@ class PickerPopup(ui.View):
     def tableview_did_select(self, tv, section, row):
         item = self._filtered[row]
         self.on_select(item[0], item[1])
-        self.close()
-
-    def textfield_should_change(self, tf, range_, replacement):
-        return True
+        if self.auto_close:
+            self.close()
 
     def textfield_did_change(self, tf):
         q = tf.text.strip().lower()
@@ -372,12 +372,11 @@ class CalendarPopup(ui.View):
 # ─────────────────────────────────────────────
 
 def _alert(msg):
-    import console
     console.alert("แจ้งเตือน", msg, "ตกลง", hide_cancel_button=True)
 
 
 # ─────────────────────────────────────────────
-#  ฟอร์มหลัก  (ใช้ ScrollView เพื่อหนี keyboard)
+#  ฟอร์มหลัก (ExpenseForm)
 # ─────────────────────────────────────────────
 
 class ExpenseForm(ui.View):
@@ -393,6 +392,11 @@ class ExpenseForm(ui.View):
         self._selected_category_id     = None
         self._selected_payment_type_id = None
         self._date_str = datetime.date.today().isoformat()
+
+        # [NEW] TapCatcher สำหรับปิดคีย์บอร์ด
+        self.tap_catcher = ui.View(frame=self.bounds, flex='WH')
+        self.tap_catcher.touch_ended = lambda touch: ui.end_editing()
+        self.add_subview(self.tap_catcher)
 
         # ── ScrollView ────────────────────────────────────────
         self._sv = ui.ScrollView()
@@ -472,9 +476,7 @@ class ExpenseForm(ui.View):
         # จำนวนเงิน + ปุ่ม "หมายเหตุ"
         section_label("จำนวนเงิน (บาท)", y); y += 22
         note_btn_w = 80
-        self.tf_amount = ui.TextField(
-            frame=(pad, y, W - pad * 2 - note_btn_w - 8, f_h)
-        )
+        self.tf_amount = ui.TextField(frame=(pad, y, W - pad * 2 - note_btn_w - 8, f_h))
         self.tf_amount.placeholder      = "0.00"
         self.tf_amount.border_style     = BORDER_STYLE_ROUNDED
         self.tf_amount.background_color = "white"
@@ -482,9 +484,7 @@ class ExpenseForm(ui.View):
         self.tf_amount.flex             = "W"
         sv.add_subview(self.tf_amount)
 
-        btn_go_note = ui.Button(
-            frame=(pad + self.tf_amount.width + 8, y, note_btn_w, f_h)
-        )
+        btn_go_note = ui.Button(frame=(pad + self.tf_amount.width + 8, y, note_btn_w, f_h))
         btn_go_note.title            = "หมายเหตุ"
         btn_go_note.background_color = "#ECEFF1"
         btn_go_note.tint_color       = "#333333"
@@ -501,9 +501,9 @@ class ExpenseForm(ui.View):
         self.tf_note.border_style     = BORDER_STYLE_ROUNDED
         self.tf_note.background_color = "white"
         self.tf_note.flex             = "W"
-        self.tf_note.delegate         = self   # ดัก begin/end editing
+        self.tf_note.delegate         = self
         sv.add_subview(self.tf_note)
-        self._note_y = y   # เก็บ y ไว้คำนวณ scroll
+        self._note_y = y
         y += f_h + 28
 
         # ปุ่ม Save
@@ -516,24 +516,22 @@ class ExpenseForm(ui.View):
         btn_save.flex             = "W"
         btn_save.action           = self._save
         sv.add_subview(btn_save)
-        y += 52 + 32   # padding ล่าง
+        y += 52 + 32
 
         sv.content_size = (W, y)
 
     # ── TextField delegate (สำหรับ tf_note) ─────────────────
 
     def textfield_did_begin_editing(self, tf):
-        """เมื่อเริ่มพิมพ์หมายเหตุ ให้เลื่อน scroll ขึ้นเพื่อหนี keyboard"""
         self._scroll_to_note()
 
     def textfield_did_end_editing(self, tf):
-        """เมื่อปิด keyboard คืน scroll กลับตำแหน่งปกติ"""
         self._sv.content_offset = (0, 0)
 
     # ── Scroll helper ────────────────────────────────────────
 
     def _scroll_to_note(self):
-        keyboard_h    = 260
+        keyboard_h    = 300
         visible_h     = self.height - keyboard_h
         target_offset = self._note_y - visible_h / 2
         target_offset = max(0, target_offset)
@@ -542,50 +540,34 @@ class ExpenseForm(ui.View):
     # ── Actions ─────────────────────────────────────────────
 
     def _focus_note(self, sender):
-        self.tf_amount.end_editing()
+        ui.end_editing()
         self.tf_note.begin_editing()
 
     def _open_calendar(self, sender):
-        popup = CalendarPopup(
-            self._date_str,
-            on_date=self._on_date_selected,
-            frame=self.bounds,
-        )
+        popup = CalendarPopup(self._date_str, on_date=self._on_date_selected, frame=self.bounds)
         self.add_subview(popup)
 
     def _on_date_selected(self, date_str):
-        self._date_str      = date_str
+        self._date_str = date_str
         self.btn_date.title = f"📅  {date_str}"
 
     def _open_detail_picker(self, sender):
-        popup = PickerPopup(
-            self.db_path,
-            "detail_master",
-            "เลือกรายละเอียด",
-            on_select=self._on_detail_selected,
-            frame=self.bounds,
-            type_filter="รายจ่าย",
-            allow_use_text=True,
-        )
+        # รายละเอียด: auto_close=False (ต้องเลือกแล้วปิดเอง เพื่อให้แก้ไขชื่อต่อได้)
+        popup = PickerPopup(self.db_path, "detail_master", "เลือกรายละเอียด", 
+                           on_select=self._on_detail_selected, auto_close=False, 
+                           type_filter="รายจ่าย", allow_use_text=True, frame=self.bounds)
         self.add_subview(popup)
 
     def _on_detail_selected(self, item_id, name):
         self._selected_detail_id   = item_id
         self._selected_detail_name = name.strip()
-        if item_id is None:
-            self.btn_detail.title = f"ใช้ครั้งนี้: {name}"
-        else:
-            self.btn_detail.title = f"✔  {name}"
+        self.btn_detail.title = f"✔  {name}" if item_id else f"ใช้ครั้งนี้: {name}"
         self.btn_detail.tint_color = "#B71C1C"
 
     def _open_category_picker(self, sender):
-        popup = PickerPopup(
-            self.db_path,
-            "category_expense",
-            "เลือกหมวดหมู่",
-            on_select=self._on_category_selected,
-            frame=self.bounds,
-        )
+        # หมวดหมู่: auto_close=True (เลือกแล้วปิดทันที)
+        popup = PickerPopup(self.db_path, "category_expense", "เลือกหมวดหมู่", 
+                           on_select=self._on_category_selected, auto_close=True, frame=self.bounds)
         self.add_subview(popup)
 
     def _on_category_selected(self, item_id, name):
@@ -594,13 +576,9 @@ class ExpenseForm(ui.View):
         self.btn_category.tint_color = "#B71C1C"
 
     def _open_payment_picker(self, sender):
-        popup = PickerPopup(
-            self.db_path,
-            "payment_type",
-            "เลือกประเภทการชำระ",
-            on_select=self._on_payment_selected,
-            frame=self.bounds,
-        )
+        # ประเภทการชำระ: auto_close=True (เลือกแล้วปิดทันที)
+        popup = PickerPopup(self.db_path, "payment_type", "เลือกประเภทการชำระ", 
+                           on_select=self._on_payment_selected, auto_close=True, frame=self.bounds)
         self.add_subview(popup)
 
     def _on_payment_selected(self, item_id, name):
@@ -610,62 +588,32 @@ class ExpenseForm(ui.View):
 
     def _save(self, sender):
         if self._selected_detail_id is None and not self._selected_detail_name:
-            _alert("กรุณาเลือกรายละเอียด")
-            return
+            _alert("กรุณาเลือกรายละเอียด"); return
         if self._selected_category_id is None:
-            _alert("กรุณาเลือกหมวดหมู่")
-            return
+            _alert("กรุณาเลือกหมวดหมู่"); return
         if self._selected_payment_type_id is None:
-            _alert("กรุณาเลือกประเภทการชำระ")
-            return
-        amount_str = self.tf_amount.text.strip()
-        if not amount_str:
-            _alert("กรุณากรอกจำนวนเงิน")
-            return
+            _alert("กรุณาเลือกประเภทการชำระ"); return
         try:
-            amount = float(amount_str)
+            amount = float(self.tf_amount.text.strip())
         except ValueError:
-            _alert("จำนวนเงินไม่ถูกต้อง")
-            return
+            _alert("จำนวนเงินไม่ถูกต้อง"); return
 
-        detail_id   = self._selected_detail_id if self._selected_detail_id is not None else 0
-        detail_text = (self._selected_detail_name or '').strip()
-        note        = self.tf_note.text.strip()
-
-        _save_expense(
-            self.db_path,
-            self._date_str,
-            detail_id,
-            detail_text,
-            self._selected_category_id,
-            self._selected_payment_type_id,
-            amount,
-            note,
-        )
+        _save_expense(self.db_path, self._date_str, self._selected_detail_id or 0, 
+                      self._selected_detail_name or '', self._selected_category_id, 
+                      self._selected_payment_type_id, amount, self.tf_note.text.strip())
         self._reset()
 
     def _reset(self):
-        import console
+        ui.end_editing()
         console.hud_alert("บันทึกสำเร็จ ✓", "success", 1.2)
-
-        self._selected_detail_id       = None
-        self._selected_detail_name     = None
-        self._selected_category_id     = None
-        self._selected_payment_type_id = None
+        self._selected_detail_id = self._selected_detail_name = None
+        self._selected_category_id = self._selected_payment_type_id = None
         self._date_str = datetime.date.today().isoformat()
-
-        self.btn_date.title          = f"📅  {self._date_str}"
-        self.btn_detail.title        = "แตะเพื่อเลือกรายละเอียด..."
-        self.btn_detail.tint_color   = "#555555"
-        self.btn_category.title      = "แตะเพื่อเลือกหมวดหมู่..."
-        self.btn_category.tint_color = "#555555"
-        self.btn_payment.title       = "แตะเพื่อเลือกวิธีชำระเงิน..."
-        self.btn_payment.tint_color  = "#555555"
-        self.tf_amount.text = ""
-        self.tf_note.text   = ""
-        # คืน scroll กลับบนสุด
+        self.btn_date.title = f"📅  {self._date_str}"
+        self.btn_detail.title = self.btn_category.title = self.btn_payment.title = "แตะเพื่อเลือก..."
+        self.btn_detail.tint_color = self.btn_category.tint_color = self.btn_payment.tint_color = "#555555"
+        self.tf_amount.text = self.tf_note.text = ""
         self._sv.content_offset = (0, 0)
-
 
 # ─────────────────────────────────────────────
 #  Entry Point
