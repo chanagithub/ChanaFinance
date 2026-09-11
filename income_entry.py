@@ -2,6 +2,9 @@
 # ใช้งานใน Pythonista บน iPhone/iPad
 # วิธีเรียกใช้: import income_entry; income_entry.show(db_path)
 #
+# v2.1 — แก้ AttributeError: ScrollView ไม่มี send_subview_to_back
+#        ใช้หลักการ "add ก่อน = อยู่ชั้นล่างสุด" แทน
+#
 # v2 — ปรับปรุง keyboard handling:
 #   - ScrollView เลื่อนขึ้นได้จนสุดแม้คีย์บอร์ดเปิดอยู่
 #   - auto-scroll ให้ช่องที่กำลังพิมพ์ลอยเหนือคีย์บอร์ด
@@ -29,7 +32,8 @@ def _kb_height():
 
 
 class _TapCatcher(ui.View):
-    """พื้นที่โปร่งใส แตะแล้วปิดคีย์บอร์ด"""
+    """พื้นที่โปร่งใส แตะแล้วปิดคีย์บอร์ด
+    ต้อง add_subview เป็นตัวแรกสุด เพื่อให้อยู่ชั้นล่างสุด"""
 
     def __init__(self, on_tap, **kw):
         super().__init__(**kw)
@@ -197,9 +201,9 @@ class PickerPopup(ui.View):
         card.add_subview(btn_cancel)
         self._btn_row.append(btn_cancel)
 
-        self.card      = card
-        self._filtered = list(self.all_items)
-        self._editing  = False
+        self.card         = card
+        self._filtered    = list(self.all_items)
+        self._editing     = False
         self._tv_h_normal = self.tv.height
 
     # ── TableView ────────────────────────────────────────
@@ -249,8 +253,7 @@ class PickerPopup(ui.View):
     def _move_buttons(self, keyboard_up):
         """เลื่อนแถวปุ่มขึ้นเหนือคีย์บอร์ด + ย่อ TableView ตาม"""
         if keyboard_up:
-            kb = _kb_height()
-            # ตำแหน่ง y ของ card เทียบกับจอ
+            kb       = _kb_height()
             card_top = self.card.y
             target_y = self.height - kb - card_top - 44
             target_y = max(94, min(target_y, self._btn_row_y_normal))
@@ -488,6 +491,14 @@ class IncomeForm(ui.View):
 
         sv = self._sv
 
+        # ── พื้นที่แตะเพื่อปิดคีย์บอร์ด ──
+        # ต้อง add "ก่อน" widget อื่นทั้งหมด เพื่อให้อยู่ชั้นล่างสุด
+        # (ScrollView ไม่มี send_subview_to_back)
+        self._tap_catcher = _TapCatcher(self._dismiss_keyboard,
+                                        frame=(0, 0, W, 2000))
+        self._tap_catcher.flex = 'W'
+        sv.add_subview(self._tap_catcher)
+
         def lbl(text, y_pos):
             l = ui.Label(frame=(pad, y_pos, W - pad * 2, 22))
             l.text       = text
@@ -574,13 +585,6 @@ class IncomeForm(ui.View):
         # ── ความสูงเนื้อหาจริง ──
         self._content_h = y
         sv.content_size = (W, y)
-
-        # ── พื้นที่แตะเพื่อปิดคีย์บอร์ด (อยู่หลังสุด ไม่บังปุ่ม) ──
-        self._tap_catcher = _TapCatcher(self._dismiss_keyboard,
-                                        frame=(0, 0, W, y + 400))
-        self._tap_catcher.flex = 'W'
-        sv.add_subview(self._tap_catcher)
-        sv.send_subview_to_back(self._tap_catcher)
 
         # ── ผูก delegate ให้ทุก TextField ──
         self._text_fields = [self.tf_amount, self.tf_note]
