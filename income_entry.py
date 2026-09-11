@@ -1,16 +1,15 @@
-# expense_entry.py
+# income_entry.py
 # ใช้งานใน Pythonista บน iPhone/iPad
-# วิธีเรียกใช้: import expense_entry; expense_entry.show(db_path)
+# วิธีเรียกใช้: import income_entry; income_entry.show(db_path)
 #
-# v3 — พอร์ต keyboard-avoidance + auto_close logic จาก income_entry.py v2.1:
-#   - ScrollView เลื่อนขึ้นได้จนสุดแม้คีย์บอร์ดเปิดอยู่ (_expand_for_keyboard)
-#   - auto-scroll ให้ช่องที่กำลังพิมพ์ลอยเหนือคีย์บอร์ด (_scroll_to_field)
-#   - แตะพื้นที่ว่างเพื่อปิดคีย์บอร์ด (_TapCatcher)
-#   - PickerPopup รองรับ auto_close:
-#       รายละเอียดรายจ่าย     -> auto_close=False (เลือกแล้วมาอยู่ในช่องค้นหาให้แก้ก่อน)
-#       หมวดหมู่รายจ่าย        -> auto_close=True  (เลือกแล้วปิด popup ทันที)
-#       หมวดหมู่ชนิดการจ่ายเงิน -> auto_close=True  (เลือกแล้วปิด popup ทันที)
-#   - ปุ่มใน PickerPopup เลื่อนหนีคีย์บอร์ดเหมือนต้นฉบับ
+# v2.1 — แก้ AttributeError: ScrollView ไม่มี send_subview_to_back
+#        ใช้หลักการ "add ก่อน = อยู่ชั้นล่างสุด" แทน
+#
+# v2 — ปรับปรุง keyboard handling:
+#   - ScrollView เลื่อนขึ้นได้จนสุดแม้คีย์บอร์ดเปิดอยู่
+#   - auto-scroll ให้ช่องที่กำลังพิมพ์ลอยเหนือคีย์บอร์ด
+#   - แตะพื้นที่ว่างเพื่อปิดคีย์บอร์ด
+#   - ปุ่มใน PickerPopup เลื่อนหนีคีย์บอร์ด
 
 import ui
 import sqlite3
@@ -80,7 +79,7 @@ def _insert_item(db_path, table, name):
         cur = conn.cursor()
         if table == 'detail_master':
             cur.execute(
-                "INSERT INTO detail_master (detail_name, type) VALUES (?, 'รายจ่าย')",
+                "INSERT INTO detail_master (detail_name, type) VALUES (?, 'รายรับ')",
                 (name,)
             )
             conn.commit()
@@ -96,8 +95,7 @@ def _insert_item(db_path, table, name):
         conn.close()
 
 
-def _save_expense(db_path, date_str, detail_id, detail_text,
-                   category_id, payment_type_id, amount, note):
+def _save_income(db_path, date_str, detail_id, detail_text, category_id, amount, note):
     detail_text = (detail_text or '').strip()
     note        = (note or '').strip()
     parts = date_str.split("-")
@@ -106,11 +104,9 @@ def _save_expense(db_path, date_str, detail_id, detail_text,
     try:
         cur = conn.cursor()
         cur.execute(
-            "INSERT INTO expense "
-            "(date, year, month, detail_id, detail_text, category_id, payment_type_id, amount, note) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (date_str, year, month, detail_id, detail_text,
-             category_id, payment_type_id, amount, note),
+            "INSERT INTO income (date, year, month, detail_id, detail_text, category_id, amount, note) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (date_str, year, month, detail_id, detail_text, category_id, amount, note),
         )
         conn.commit()
     finally:
@@ -225,7 +221,7 @@ class PickerPopup(ui.View):
         item = self._filtered[row]
         if self.auto_close:
 
-            # พฤติกรรมเดิม (หมวดหมู่ / ประเภทการชำระ): เลือกแล้วจบเลย
+            # พฤติกรรมเดิม (หมวดหมู่): เลือกแล้วจบเลย
 
             self.on_select(item[0], item[1])
 
@@ -238,6 +234,7 @@ class PickerPopup(ui.View):
             self.search_tf.text = item[1]
 
             self.search_tf.begin_editing()
+        
 
     # ── TextField delegate ───────────────────────────────
 
@@ -421,7 +418,7 @@ class CalendarPopup(ui.View):
 
             d = datetime.date(self._year, self._month, day)
             if d == today:
-                btn.background_color = "#E53935"
+                btn.background_color = "#1976D2"
                 btn.tint_color       = "white"
             else:
                 btn.background_color = "clear"
@@ -466,7 +463,7 @@ class CalendarPopup(ui.View):
 #  ฟอร์มหลัก  (ScrollView + keyboard avoidance)
 # ─────────────────────────────────────────────
 
-class ExpenseForm(ui.View):
+class IncomeForm(ui.View):
     """
     Outer view — จัดการ keyboard
     Inner ScrollView — ห่อ widget ทั้งหมด
@@ -475,13 +472,12 @@ class ExpenseForm(ui.View):
     def __init__(self, db_path, **kwargs):
         super().__init__(**kwargs)
         self.db_path = db_path
-        self.background_color = "#FFF8F8"
-        self.name = "บันทึกรายจ่าย"
+        self.background_color = "#F5F7FA"
+        self.name = "บันทึกรายรับ"
 
-        self._selected_detail_id       = None
-        self._selected_detail_name     = None
-        self._selected_category_id     = None
-        self._selected_payment_type_id = None
+        self._selected_detail_id   = None
+        self._selected_detail_name = None
+        self._selected_category_id = None
         self._date_str = datetime.date.today().isoformat()
 
         # สถานะคีย์บอร์ด
@@ -494,7 +490,7 @@ class ExpenseForm(ui.View):
         self._sv = ui.ScrollView()
         self._sv.frame                  = self.bounds
         self._sv.flex                   = 'WH'
-        self._sv.background_color       = "#FFF8F8"
+        self._sv.background_color       = "#F5F7FA"
         self._sv.always_bounce_vertical = True
         self.add_subview(self._sv)
 
@@ -535,16 +531,6 @@ class ExpenseForm(ui.View):
             sv.add_subview(b)
             return b
 
-        # หัวเรื่อง
-        title_lbl = ui.Label(frame=(0, 0, W, 52))
-        title_lbl.text             = "💸  บันทึกรายจ่าย"
-        title_lbl.font             = ("<system-bold>", 20)
-        title_lbl.text_color       = "#B71C1C"
-        title_lbl.alignment        = ui.ALIGN_CENTER
-        title_lbl.background_color = "#FFEBEE"
-        title_lbl.flex             = "W"
-        sv.add_subview(title_lbl)
-
         # วันที่
         lbl("วันที่", y); y += 24
         self.btn_date = btn(f"📅  {self._date_str}", y, "#FFFFFF")
@@ -563,12 +549,6 @@ class ExpenseForm(ui.View):
         lbl("หมวดหมู่", y); y += 24
         self.btn_category = btn("แตะเพื่อเลือกหมวดหมู่...", y)
         self.btn_category.action = self._open_category_picker
-        y += fh + 16
-
-        # ประเภทการชำระ
-        lbl("ประเภทการชำระ", y); y += 24
-        self.btn_payment = btn("แตะเพื่อเลือกวิธีชำระเงิน...", y)
-        self.btn_payment.action = self._open_payment_picker
         y += fh + 16
 
         # จำนวนเงิน + ปุ่ม "หมายเหตุ"
@@ -607,8 +587,8 @@ class ExpenseForm(ui.View):
 
         # ปุ่มบันทึก
         self.btn_save = ui.Button(frame=(pad, y, W - pad * 2, 50))
-        self.btn_save.title            = "💾  บันทึกรายจ่าย"
-        self.btn_save.background_color = "#E53935"
+        self.btn_save.title            = "💾  บันทึกรายรับ"
+        self.btn_save.background_color = "#43A047"
         self.btn_save.tint_color       = "white"
         self.btn_save.font             = ("<system-bold>", 17)
         self.btn_save.corner_radius    = 10
@@ -700,9 +680,9 @@ class ExpenseForm(ui.View):
             "เลือกรายละเอียด",
             on_select=self._on_detail_selected,
             frame=self.bounds,
-            type_filter="รายจ่าย",
+            type_filter="รายรับ",
             allow_use_text=True,
-            auto_close=False,  # รายละเอียด: เลือกแล้วมาอยู่ในช่องค้นหาให้แก้ก่อน ไม่ปิด popup ทันที
+            auto_close=False # <--- ในกรณีรายละเอียด ให้เลือก "ใช้ครั้งนี้" หรือ "เพิ่มรายการนี้" ก่อนปิด popup  แต่ถ้าเป็นหมวดหมู่ ให้ปิด popup ทันทีหลังเลือก
         )
         popup.flex = 'WH'
         self.add_subview(popup)
@@ -714,17 +694,16 @@ class ExpenseForm(ui.View):
             self.btn_detail.title = f"ใช้ครั้งนี้: {name}"
         else:
             self.btn_detail.title = f"✔  {name}"
-        self.btn_detail.tint_color = "#B71C1C"
+        self.btn_detail.tint_color = "#1B5E20"
 
     def _open_category_picker(self, sender):
         self._dismiss_keyboard()
         popup = PickerPopup(
             self.db_path,
-            "category_expense",
+            "category_income",
             "เลือกหมวดหมู่",
             on_select=self._on_category_selected,
             frame=self.bounds,
-            auto_close=True,  # หมวดหมู่: เลือกแล้วปิด popup ทันที
         )
         popup.flex = 'WH'
         self.add_subview(popup)
@@ -732,25 +711,7 @@ class ExpenseForm(ui.View):
     def _on_category_selected(self, item_id, name):
         self._selected_category_id   = item_id
         self.btn_category.title      = f"✔  {name}"
-        self.btn_category.tint_color = "#B71C1C"
-
-    def _open_payment_picker(self, sender):
-        self._dismiss_keyboard()
-        popup = PickerPopup(
-            self.db_path,
-            "payment_type",
-            "เลือกประเภทการชำระ",
-            on_select=self._on_payment_selected,
-            frame=self.bounds,
-            auto_close=True,  # ประเภทการชำระ: เลือกแล้วปิด popup ทันที
-        )
-        popup.flex = 'WH'
-        self.add_subview(popup)
-
-    def _on_payment_selected(self, item_id, name):
-        self._selected_payment_type_id = item_id
-        self.btn_payment.title         = f"✔  {name}"
-        self.btn_payment.tint_color    = "#B71C1C"
+        self.btn_category.tint_color = "#1B5E20"
 
     def _save(self, sender):
         self._dismiss_keyboard()
@@ -760,9 +721,6 @@ class ExpenseForm(ui.View):
             return
         if self._selected_category_id is None:
             _alert("กรุณาเลือกหมวดหมู่")
-            return
-        if self._selected_payment_type_id is None:
-            _alert("กรุณาเลือกประเภทการชำระ")
             return
         amount_str = self.tf_amount.text.strip()
         if not amount_str:
@@ -778,13 +736,12 @@ class ExpenseForm(ui.View):
         detail_text = (self._selected_detail_name or '').strip()
         note        = self.tf_note.text.strip()
 
-        _save_expense(
+        _save_income(
             self.db_path,
             self._date_str,
             detail_id,
             detail_text,
             self._selected_category_id,
-            self._selected_payment_type_id,
             amount,
             note,
         )
@@ -794,10 +751,9 @@ class ExpenseForm(ui.View):
         import console
         console.hud_alert("บันทึกสำเร็จ ✓", "success", 1.2)
 
-        self._selected_detail_id       = None
-        self._selected_detail_name     = None
-        self._selected_category_id     = None
-        self._selected_payment_type_id = None
+        self._selected_detail_id   = None
+        self._selected_detail_name = None
+        self._selected_category_id = None
         self._date_str = datetime.date.today().isoformat()
 
         self.btn_date.title          = f"📅  {self._date_str}"
@@ -805,8 +761,6 @@ class ExpenseForm(ui.View):
         self.btn_detail.tint_color   = "#333333"
         self.btn_category.title      = "แตะเพื่อเลือกหมวดหมู่..."
         self.btn_category.tint_color = "#333333"
-        self.btn_payment.title       = "แตะเพื่อเลือกวิธีชำระเงิน..."
-        self.btn_payment.tint_color  = "#333333"
         self.tf_amount.text = ""
         self.tf_note.text   = ""
 
@@ -822,7 +776,7 @@ class ExpenseForm(ui.View):
 
 def show(db_path: str):
     W, H = ui.get_screen_size()
-    form = ExpenseForm(db_path, frame=(0, 0, W, H))
+    form = IncomeForm(db_path, frame=(0, 0, W, H))
     form.present("sheet")
 
 
@@ -848,13 +802,12 @@ if __name__ == "__main__":
         CREATE TABLE IF NOT EXISTS expense (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             date TEXT, year INTEGER, month INTEGER,
-            detail_id INTEGER, detail_text TEXT,
-            category_id INTEGER, payment_type_id INTEGER, amount REAL, note TEXT
+            detail_id INTEGER, category_id INTEGER,
+            payment_type_id INTEGER, amount REAL, note TEXT
         );
-        INSERT OR IGNORE INTO category_expense (name) VALUES ('อาหาร'),('เดินทาง'),('ที่พัก');
-        INSERT OR IGNORE INTO payment_type (name) VALUES ('เงินสด'),('โอนเงิน'),('บัตรเครดิต');
+        INSERT OR IGNORE INTO category_income (name) VALUES ('เงินเดือน'),('โบนัส'),('รายได้พิเศษ');
         INSERT OR IGNORE INTO detail_master (detail_name, type) VALUES
-            ('ค่าอาหารกลางวัน','รายจ่าย'),('ค่าน้ำมัน','รายจ่าย'),('ค่าน้ำ-ไฟ','รายจ่าย');
+            ('เงินเดือนประจำ','รายรับ'),('ค่าล่วงเวลา','รายรับ'),('ดอกเบี้ย','รายรับ');
     """)
     conn.commit()
     conn.close()
