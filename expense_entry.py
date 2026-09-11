@@ -35,7 +35,7 @@ def _get_items(db_path, table, type_filter=None):
 
 
 def _insert_item(db_path, table, name):
-    name = name.strip()   # strip ก่อน insert เสมอ
+    name = name.strip()
     conn = sqlite3.connect(db_path)
     try:
         cur = conn.cursor()
@@ -58,10 +58,8 @@ def _insert_item(db_path, table, name):
 
 def _save_expense(db_path, date_str, detail_id, detail_text,
                   category_id, payment_type_id, amount, note):
-    # strip ทุก text field ก่อน insert
     detail_text = (detail_text or '').strip()
     note        = (note or '').strip()
-
     parts = date_str.split("-")
     year, month = int(parts[0]), int(parts[1])
     conn = sqlite3.connect(db_path)
@@ -86,8 +84,8 @@ def _save_expense(db_path, date_str, detail_id, detail_text,
 class PickerPopup(ui.View):
 
     def __init__(self, db_path, table, title, on_select, **kwargs):
-        type_filter          = kwargs.pop("type_filter", None)
-        self.allow_use_text  = kwargs.pop("allow_use_text", False)
+        type_filter         = kwargs.pop("type_filter", None)
+        self.allow_use_text = kwargs.pop("allow_use_text", False)
         super().__init__(**kwargs)
 
         self.db_path   = db_path
@@ -131,12 +129,12 @@ class PickerPopup(ui.View):
         self.tv.separator_color = "#eeeeee"
         card.add_subview(self.tv)
 
-        btn_y   = card_h - btn_area_h + 6
-        margin  = 8
+        btn_y  = card_h - btn_area_h + 6
+        margin = 8
 
         if self.allow_use_text:
-            n_btn  = 3
-            btn_w  = (card_w - margin * (n_btn + 1)) / n_btn
+            n_btn = 3
+            btn_w = (card_w - margin * (n_btn + 1)) / n_btn
 
             btn_use = ui.Button(frame=(margin, btn_y, btn_w, 36))
             btn_use.title            = "ใช้ครั้งนี้"
@@ -150,8 +148,8 @@ class PickerPopup(ui.View):
             x_add    = margin * 2 + btn_w
             x_cancel = margin * 3 + btn_w * 2
         else:
-            n_btn  = 2
-            btn_w  = (card_w - margin * (n_btn + 1)) / n_btn
+            n_btn    = 2
+            btn_w    = (card_w - margin * (n_btn + 1)) / n_btn
             x_add    = margin
             x_cancel = margin * 2 + btn_w
 
@@ -379,7 +377,7 @@ def _alert(msg):
 
 
 # ─────────────────────────────────────────────
-#  ฟอร์มหลัก
+#  ฟอร์มหลัก  (ใช้ ScrollView เพื่อหนี keyboard)
 # ─────────────────────────────────────────────
 
 class ExpenseForm(ui.View):
@@ -396,23 +394,35 @@ class ExpenseForm(ui.View):
         self._selected_payment_type_id = None
         self._date_str = datetime.date.today().isoformat()
 
+        # ── ScrollView ────────────────────────────────────────
+        self._sv = ui.ScrollView()
+        self._sv.frame                  = self.bounds
+        self._sv.flex                   = 'WH'
+        self._sv.background_color       = "#FFF8F8"
+        self._sv.always_bounce_vertical = True
+        self.add_subview(self._sv)
+
         self._build_ui()
 
     def _build_ui(self):
-        W     = self.width
-        pad   = 16
-        f_h   = 44
-        gap   = 14
-        y     = 64
+        W   = self.width or 375
+        pad = 16
+        f_h = 44
+        gap = 14
+        y   = 0
 
-        title_lbl = ui.Label(frame=(0, 0, W, 52))
+        sv = self._sv
+
+        # Title bar
+        title_lbl = ui.Label(frame=(0, y, W, 52))
         title_lbl.text             = "💸  บันทึกรายจ่าย"
         title_lbl.font             = ("<system-bold>", 20)
         title_lbl.text_color       = "#B71C1C"
         title_lbl.alignment        = ui.ALIGN_CENTER
         title_lbl.background_color = "#FFEBEE"
         title_lbl.flex             = "W"
-        self.add_subview(title_lbl)
+        sv.add_subview(title_lbl)
+        y += 52 + 12
 
         def section_label(text, y_pos):
             lbl = ui.Label(frame=(pad, y_pos, W - pad * 2, 20))
@@ -420,7 +430,7 @@ class ExpenseForm(ui.View):
             lbl.font       = ("<system>", 13)
             lbl.text_color = "#888888"
             lbl.flex       = "W"
-            self.add_subview(lbl)
+            sv.add_subview(lbl)
 
         def make_picker_btn(placeholder, y_pos):
             btn = ui.Button(frame=(pad, y_pos, W - pad * 2, f_h))
@@ -429,9 +439,10 @@ class ExpenseForm(ui.View):
             btn.tint_color       = "#555555"
             btn.corner_radius    = 8
             btn.flex             = "W"
-            self.add_subview(btn)
+            sv.add_subview(btn)
             return btn
 
+        # วันที่
         section_label("วันที่", y); y += 22
         self.btn_date = make_picker_btn(f"📅  {self._date_str}", y)
         self.btn_date.background_color = "#FFFFFF"
@@ -440,21 +451,25 @@ class ExpenseForm(ui.View):
         self.btn_date.action           = self._open_calendar
         y += f_h + gap
 
+        # รายละเอียด
         section_label("รายละเอียด", y); y += 22
         self.btn_detail = make_picker_btn("แตะเพื่อเลือกรายละเอียด...", y)
         self.btn_detail.action = self._open_detail_picker
         y += f_h + gap
 
+        # หมวดหมู่
         section_label("หมวดหมู่", y); y += 22
         self.btn_category = make_picker_btn("แตะเพื่อเลือกหมวดหมู่...", y)
         self.btn_category.action = self._open_category_picker
         y += f_h + gap
 
+        # ประเภทการชำระ
         section_label("ประเภทการชำระ", y); y += 22
         self.btn_payment = make_picker_btn("แตะเพื่อเลือกวิธีชำระเงิน...", y)
         self.btn_payment.action = self._open_payment_picker
         y += f_h + gap
 
+        # จำนวนเงิน + ปุ่ม "หมายเหตุ"
         section_label("จำนวนเงิน (บาท)", y); y += 22
         note_btn_w = 80
         self.tf_amount = ui.TextField(
@@ -465,29 +480,33 @@ class ExpenseForm(ui.View):
         self.tf_amount.background_color = "white"
         self.tf_amount.keyboard_type    = KEYBOARD_DECIMAL_PAD
         self.tf_amount.flex             = "W"
-        self.add_subview(self.tf_amount)
+        sv.add_subview(self.tf_amount)
 
-        btn_note_jump = ui.Button(
+        btn_go_note = ui.Button(
             frame=(pad + self.tf_amount.width + 8, y, note_btn_w, f_h)
         )
-        btn_note_jump.title            = "หมายเหตุ"
-        btn_note_jump.background_color = "#ECEFF1"
-        btn_note_jump.tint_color       = "#333333"
-        btn_note_jump.corner_radius    = 8
-        btn_note_jump.flex             = "L"
-        btn_note_jump.action           = self._focus_note
-        self.add_subview(btn_note_jump)
+        btn_go_note.title            = "หมายเหตุ"
+        btn_go_note.background_color = "#ECEFF1"
+        btn_go_note.tint_color       = "#333333"
+        btn_go_note.corner_radius    = 8
+        btn_go_note.flex             = "L"
+        btn_go_note.action           = self._focus_note
+        sv.add_subview(btn_go_note)
         y += f_h + gap
 
+        # หมายเหตุ
         section_label("หมายเหตุ (ถ้ามี)", y); y += 22
         self.tf_note = ui.TextField(frame=(pad, y, W - pad * 2, f_h))
         self.tf_note.placeholder      = "หมายเหตุ..."
         self.tf_note.border_style     = BORDER_STYLE_ROUNDED
         self.tf_note.background_color = "white"
         self.tf_note.flex             = "W"
-        self.add_subview(self.tf_note)
+        self.tf_note.delegate         = self   # ดัก begin/end editing
+        sv.add_subview(self.tf_note)
+        self._note_y = y   # เก็บ y ไว้คำนวณ scroll
         y += f_h + 28
 
+        # ปุ่ม Save
         btn_save = ui.Button(frame=(pad, y, W - pad * 2, 52))
         btn_save.title            = "💾  บันทึกรายจ่าย"
         btn_save.background_color = "#E53935"
@@ -496,7 +515,31 @@ class ExpenseForm(ui.View):
         btn_save.corner_radius    = 12
         btn_save.flex             = "W"
         btn_save.action           = self._save
-        self.add_subview(btn_save)
+        sv.add_subview(btn_save)
+        y += 52 + 32   # padding ล่าง
+
+        sv.content_size = (W, y)
+
+    # ── TextField delegate (สำหรับ tf_note) ─────────────────
+
+    def textfield_did_begin_editing(self, tf):
+        """เมื่อเริ่มพิมพ์หมายเหตุ ให้เลื่อน scroll ขึ้นเพื่อหนี keyboard"""
+        self._scroll_to_note()
+
+    def textfield_did_end_editing(self, tf):
+        """เมื่อปิด keyboard คืน scroll กลับตำแหน่งปกติ"""
+        self._sv.content_offset = (0, 0)
+
+    # ── Scroll helper ────────────────────────────────────────
+
+    def _scroll_to_note(self):
+        keyboard_h    = 260
+        visible_h     = self.height - keyboard_h
+        target_offset = self._note_y - visible_h / 2
+        target_offset = max(0, target_offset)
+        self._sv.content_offset = (0, target_offset)
+
+    # ── Actions ─────────────────────────────────────────────
 
     def _focus_note(self, sender):
         self.tf_amount.end_editing()
@@ -528,7 +571,7 @@ class ExpenseForm(ui.View):
 
     def _on_detail_selected(self, item_id, name):
         self._selected_detail_id   = item_id
-        self._selected_detail_name = name.strip()   # strip เมื่อรับค่า
+        self._selected_detail_name = name.strip()
         if item_id is None:
             self.btn_detail.title = f"ใช้ครั้งนี้: {name}"
         else:
@@ -546,8 +589,8 @@ class ExpenseForm(ui.View):
         self.add_subview(popup)
 
     def _on_category_selected(self, item_id, name):
-        self._selected_category_id = item_id
-        self.btn_category.title    = f"✔  {name}"
+        self._selected_category_id   = item_id
+        self.btn_category.title      = f"✔  {name}"
         self.btn_category.tint_color = "#B71C1C"
 
     def _open_payment_picker(self, sender):
@@ -620,6 +663,8 @@ class ExpenseForm(ui.View):
         self.btn_payment.tint_color  = "#555555"
         self.tf_amount.text = ""
         self.tf_note.text   = ""
+        # คืน scroll กลับบนสุด
+        self._sv.content_offset = (0, 0)
 
 
 # ─────────────────────────────────────────────
@@ -627,9 +672,6 @@ class ExpenseForm(ui.View):
 # ─────────────────────────────────────────────
 
 def show(db_path: str):
-    import ui as _ui
-    screen_w, screen_h = _ui.get_screen_size()
-    form_w = min(screen_w, 500)
-    form_h = min(screen_h * 0.92, 760)
-    form = ExpenseForm(db_path, frame=(0, 0, form_w, form_h))
+    W, H = ui.get_screen_size()
+    form = ExpenseForm(db_path, frame=(0, 0, W, H))
     form.present("sheet")
