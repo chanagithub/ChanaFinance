@@ -1,0 +1,147 @@
+================================================================
+PROJECT HANDOFF — แอปบันทึกรายรับ-รายจ่ายส่วนตัว
+Version: v2  |  Updated: 2026-09-11
+================================================================
+
+[0] วิธีใช้ไฟล์นี้
+----------------------------------------------------------------
+แนบไฟล์นี้เป็นข้อความแรกของทุกแชทใหม่ แล้วบอกว่า
+"อ่าน handoff แล้วทำงานต่อจากงานค้างข้อ X"
+เมื่อจบงานแต่ละก้อน ให้ขอ AI ร่าง handoff_v3 แล้วเซฟเป็นไฟล์ใหม่
+(อย่าเซฟทับ — เก็บเวอร์ชันเก่าไว้ย้อนดูเหตุผลการตัดสินใจ)
+
+
+[1] TECH STACK
+----------------------------------------------------------------
+Platform   : Pythonista (iPhone / iPad)
+Language   : Python
+UI         : ui module (native) + ui.WebView สำหรับตาราง HTML
+Database   : SQLite
+Editor     : VS Code (แก้โค้ด) / Pythonista (รันจริง)
+
+
+[2] โครงสร้างไฟล์
+----------------------------------------------------------------
+main.py             : entry point + สร้างไฟล์ DB ใหม่ถ้ายังไม่มี
+db_manager.py       : รวมคำสั่งจัดการฐานข้อมูล
+income_entry.py     : ฟอร์มบันทึกรายรับ
+expense_entry.py    : ฟอร์มบันทึกรายจ่าย (รองรับ layout iPad)
+data_viewer.py      : แสดงข้อมูล read-only ผ่าน WebView
+monthly_summary.py  : สรุปรายเดือน
+yearly_summary.py   : สรุปรายปี
+
+
+[3] โครงสร้างฐานข้อมูล
+----------------------------------------------------------------
+Lookup tables:
+  category_income, category_expense, payment_type, detail_master
+
+Transaction tables:
+  income  : date, year, month, detail_id(FK,nullable), detail_text,
+            category_id, amount, note
+  expense : เหมือน income + payment_type_id
+
+ความสัมพันธ์: Transaction N:1 Lookup
+detail_id เป็น NULL ได้ กรณีผู้ใช้พิมพ์รายการเองโดยไม่เลือกจาก master
+
+
+[4] การตัดสินใจออกแบบ + เหตุผล  ** อ่านก่อนแก้โค้ด **
+----------------------------------------------------------------
+4.1 Snapshot detail_text
+    เก็บข้อความจริงลงตารางธุรกรรมเลย ไม่ JOIN detail_master ตอนอ่าน
+    WHY: ข้อมูลเก่าไม่เปลี่ยนตามการแก้ชื่อใน master
+         + ผู้ใช้พิมพ์เองได้โดยไม่ต้องเพิ่มเข้า master ก่อน
+    >> อย่าเปลี่ยนไปใช้ JOIN ล้วน
+
+4.2 Portable Clinic Category
+    จับคู่หมวด "คลินิก" ด้วยชื่อ String ไม่ใช่ ID
+    WHY: ย้ายไฟล์ DB ข้ามเครื่องแล้วยังทำงานถูก แม้ ID ไม่ตรงกัน
+    >> อย่า optimize ไปใช้ ID
+
+4.3 Thai Display via WebView
+    ใช้ HTML Table แทน monospace text
+    WHY: ฟอนต์ไทยบน iOS ความกว้างไม่คงที่ จัดคอลัมน์ด้วย space ไม่ตรง
+
+
+[5] ปัญหาที่เคยเจอ + วิธีแก้ (อย่าย้อนรอยเดิม)
+----------------------------------------------------------------
+- ฟอนต์ไทยจัดคอลัมน์เพี้ยน      -> ใช้ HTML Table
+- สระอำ U+0E33 นับความกว้างผิด  -> เพิ่ม exception ให้ width = 1
+- AttributeError INPUT_ROUNDED_RECT -> เข้าถึงผ่าน getattr()
+- layout() ถูกเรียกซ้ำ           -> ใช้ _built guard flag
+- จอ iPad ขนาดต่างกัน            -> คำนวณขนาดแบบ dynamic
+
+
+[6] งานค้าง (เรียงตามลำดับที่แนะนำ)
+----------------------------------------------------------------
+[ ] 1. db_manager.py : แก้ show_data() ให้รองรับตารางอื่น
+                       นอกเหนือจาก income / expense
+                       (ทำก่อน เพราะเป็นฐานของข้อ 2)
+[ ] 2. data_viewer.py : เพิ่มการแสดงตาราง payment_type
+[ ] 3. expense_entry.py : ใส่ keyboard-avoidance (ดู [7])
+[ ] 4. main.py : maintain logic สร้าง DB ใหม่เมื่อไม่มีไฟล์เดิม
+
+
+[7] SNIPPET — KEYBOARD AVOIDANCE (พร้อมใช้)
+----------------------------------------------------------------
+แนวทาง: ไม่ใช้ objc_util ใช้ delegate event ของ ui module
+แผนนำไปใช้: แยกเป็นโมดูลกลาง keyboard_helper.py
+            ให้ income_entry.py และ expense_entry.py import ร่วมกัน
+
+# --- keyboard_helper.py ---
+import ui
+
+def get_keyboard_height():
+    w, h = ui.get_screen_size()
+    return 340 if min(w, h) >= 700 else 300   # iPad / iPhone
+
+def adjust_button_position(button, parent_view, keyboard_up):
+    kb_h = get_keyboard_height()
+    if keyboard_up:
+        target_y = max(0, parent_view.height - kb_h - 52)  # guard กันติดลบ
+    else:
+        target_y = parent_view.height - 55
+
+    def _anim():
+        button.y = target_y
+    ui.animate(_anim, 0.25)      # 0.25s = จังหวะเดียวกับคีย์บอร์ด iOS
+
+class KeyboardAwareDelegate:
+    def __init__(self, button, parent_view):
+        self.button = button
+        self.parent = parent_view
+        self.editing = False
+
+    def textfield_did_begin_editing(self, textfield):
+        self.editing = True
+        adjust_button_position(self.button, self.parent, True)
+
+    def textfield_did_end_editing(self, textfield):
+        self.editing = False
+        ui.delay(self._maybe_lower, 0.08)
+
+    def _maybe_lower(self):
+        if not self.editing:
+            adjust_button_position(self.button, self.parent, False)
+
+ข้อควรระวัง:
+- ต้องใช้ delegate INSTANCE เดียวกันกับทุก TextField ในหน้านั้น
+  ไม่งั้น flag self.editing จะแยกกันคนละตัวและกันปุ่มเด้งไม่ได้
+- ปุ่มที่จะเลื่อนต้องไม่ตั้ง flex='B' เพราะจะชนกับการเซ็ต .y เอง
+- ถ้ามีหลายปุ่ม ให้ห่อไว้ใน ui.View เดียว (footer bar) แล้วเลื่อน container
+
+ทางเลือกสำรอง (ควรมีคู่กันเสมอ):
+- ปุ่มบันทึกบน title bar ผ่าน right_button_items -> คีย์บอร์ดบังไม่ได้
+- Tap to dismiss : ui.View โปร่งใสเต็ม parent เรียก view.end_editing()
+  (วางไว้หลังสุดด้วย send_subview_to_back กันบังปุ่มอื่น)
+
+
+[8] สิ่งที่ยังไม่ได้ตรวจสอบ
+----------------------------------------------------------------
+- expense_entry.py ปัจจุบันใช้ frame หรือ flex วางปุ่มบันทึก (ยังไม่ได้ดูโค้ด)
+- มี ScrollView ครอบฟอร์มอยู่แล้วหรือยัง
+- จำนวน TextField ในหน้ารายจ่าย
+
+================================================================
+END OF HANDOFF v2
+================================================================

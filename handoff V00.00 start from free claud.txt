@@ -1,0 +1,104 @@
+# สรุปโปรเจกต์: แอปการเงินส่วนบุคคล (Pythonista)
+
+> เอกสารนี้จัดทำขึ้นเพื่อส่งต่อบริบทโปรเจกต์ให้ AI ตัวอื่น (เช่นบน AiPASS) อ่านแล้วเข้าใจงานต่อได้ทันที โดยไม่ต้องอธิบายซ้ำ
+
+## 1. ภาพรวมโปรเจกต์
+
+แอปบันทึกรายรับ-รายจ่ายส่วนบุคคล เขียนด้วย Python สำหรับรันใน **Pythonista** บน iPhone/iPad
+- Database: SQLite (พกพาได้ ใช้กับหลายผู้ใช้/หลายไฟล์ได้)
+- UI: Pythonista `ui` module (native) สำหรับฟอร์มกรอกข้อมูล, `ui.WebView` + HTML table สำหรับแสดงผลข้อมูล
+- รองรับภาษาไทยเต็มรูปแบบในทุกส่วนของ UI
+
+## 2. โครงสร้างฐานข้อมูล (Schema)
+
+```sql
+CREATE TABLE category_income (id INTEGER PRIMARY KEY, name TEXT UNIQUE);
+CREATE TABLE category_expense (id INTEGER PRIMARY KEY, name TEXT UNIQUE);
+CREATE TABLE payment_type (id INTEGER PRIMARY KEY, name TEXT UNIQUE);
+
+CREATE TABLE detail_master (
+    id INTEGER PRIMARY KEY,
+    detail_name TEXT,
+    type TEXT CHECK(type IN ('รายรับ', 'รายจ่าย'))
+);
+
+CREATE TABLE income (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT, year INTEGER, month INTEGER,
+    detail_id INTEGER,      -- FK -> detail_master.id, NULL ถ้าไม่มีรหัส
+    detail_text TEXT,       -- snapshot ของชื่อรายละเอียด ณ เวลาบันทึก (ดูหัวข้อ 3)
+    category_id INTEGER,    -- FK -> category_income.id
+    amount REAL,
+    note TEXT
+);
+
+CREATE TABLE expense (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT, year INTEGER, month INTEGER,
+    detail_id INTEGER,
+    detail_text TEXT,
+    category_id INTEGER,        -- FK -> category_expense.id
+    payment_type_id INTEGER,    -- FK -> payment_type.id
+    amount REAL,
+    note TEXT
+);
+```
+
+**ความสัมพันธ์ทั้งหมดเป็น N:1** จากตาราง transaction (income/expense) ไปยัง lookup table
+
+## 3. Design Decision สำคัญ — `detail_text` แบบ Snapshot
+
+ปัญหาที่พบ: รายละเอียดรายรับ/รายจ่ายบางอย่างไม่ซ้ำกันบ่อย การบังคับให้ทุกรายการต้องมีรหัสใน `detail_master` ทำให้ตัวเลือกในหน้าจอเลือกข้อมูลรกและใช้งานยาก
+
+**แนวทางที่ใช้:**
+- `detail_id`: FK ไปยัง `detail_master.id` — ใช้เฉพาะ **ตอน insert เท่านั้น** เพื่อดึง `detail_name` มา copy เก็บ ถ้าผู้ใช้พิมพ์รายละเอียดเองอิสระ (ไม่เลือกจากตัวเลือก) ให้ `detail_id = NULL`
+- `detail_text`: เก็บค่าข้อความจริงเสมอ (ไม่ว่าจะมาจากการเลือกหรือพิมพ์เอง) — **นี่คือฟิลด์ที่ใช้แสดงผล/query ทั้งหมด ไม่ต้อง JOIN กับ detail_master อีก**
+- เป็น snapshot โดยเจตนา: ถ้าแก้ไขชื่อใน `detail_master` ภายหลัง ข้อมูลเก่าใน `detail_text` จะไม่เปลี่ยนตาม (ข้อมูลการเงินไม่ควรเปลี่ยนย้อนหลัง)
+
+| กรณี | detail_id | detail_text |
+|---|---|---|
+| เลือกจากตัวเลือกที่มีอยู่ | 3 (FK จริง) | "เงินเดือน" (copy จาก detail_master) |
+| พิมพ์เอง ไม่มีในตัวเลือก | NULL | "โบนัสพิเศษงานแต่งงาน" (ข้อความที่พิมพ์เอง) |
+
+โครงสร้างเดียวกันนี้ใช้กับทั้ง `income` และ `expense`
+
+## 4. การจับคู่หมวดหมู่คลินิก
+
+หมวดคลินิกถูกระบุด้วย **ชื่อ string** ไม่ใช่ ID เพื่อให้ portable ข้ามฐานข้อมูลของผู้ใช้แต่ละคน:
+- รายรับคลินิก: จับคู่ชื่อหมวด `'รายรับของคลินิก'`
+- รายจ่ายคลินิก: จับคู่ชื่อหมวด `'รายจ่ายของคลินิก'`
+
+## 5. โมดูลที่ทำเสร็จแล้ว
+
+| ไฟล์ | หน้าที่ |
+|---|---|
+| `income_entry.py` | ฟอร์มกรอกรายรับ — วันที่ (ปฏิทิน popup), รายละเอียด/หมวดหมู่ (TableView picker + เพิ่มรายการใหม่ได้), จำนวนเงิน, หมายเหตุ, ปุ่ม Save แล้วล้างฟอร์ม |
+| `expense_entry.py` | เหมือน income_entry.py แต่เพิ่มฟิลด์ประเภทการชำระ (payment_type) รองรับ iPad (คำนวณความกว้างจากขนาดจอจริง) |
+| `data_viewer.py` | แสดงผลอ่านอย่างเดียวผ่าน WebView/HTML table — 5 มุมมอง: รายรับทั้งหมด, รายจ่ายทั้งหมด, detail master, หมวดรายรับ, หมวดรายจ่าย |
+| `monthly_summary.py` | สรุปรายเดือนแบบ WebView — ตารางรายรับ/รายจ่าย, subtotal ตามหมวด, แยกคลินิก/ไม่ใช่คลินิก |
+| `yearly_summary.py` | สรุปรายปีอัตโนมัติ — ตาราง 2 ฝั่ง (ไม่รวมคลินิก / เฉพาะคลินิก) แบ่งคอลัมน์ตามเดือน พร้อมยอดสะสม |
+
+## 6. งานที่ค้างอยู่ (Outstanding)
+
+- แสดงผลตาราง `payment_type` ใน `data_viewer.py` ยังไม่ได้ทำ
+- `show_data()` ใน `db_manager.py` ยัง fallback เป็น "unsupported" alert สำหรับตารางอื่นนอกจาก income/expense
+- ยืนยันว่า keyboard-avoidance fix ใน `expense_entry.py` ถูกใส่แล้วหรือยัง
+- `main.py`: เพิ่ม logic ตรวจสอบว่าไม่มีไฟล์ .db เลย → แสดง alert ถามว่าจะสร้างไฟล์ใหม่ไหม → เรียก `chanafunction.create_new_file()` (ทำแล้วล่าสุด)
+
+## 7. Technical Learnings สำคัญ (Pythonista-specific)
+
+- **Thai text บน iOS**: Monospace font (แม้แต่ Menlo) ให้ความกว้างตัวอักษรไทยไม่คงที่ เพราะ iOS ทำ optical spacing — วิธีแก้ที่ได้ผลถาวรคือใช้ `ui.WebView` render เป็น HTML `<table>` แทน
+- **Thai combining character**: logic ตรวจ zero-width ของ `unicodedata` ต้องมี exception พิเศษสำหรับ `ำ` (sara am, U+0E33) ให้นับ width=1 แม้จะถูกจัดเป็น combining character
+- **Pythonista UI quirks**:
+  - `ui.INPUT_ROUNDED_RECT` อาจ throw AttributeError — ใช้ `getattr` fallback เสมอ
+  - สร้าง UI ใน `layout()` พร้อม `_built` guard flag เพื่อเลี่ยงปัญหา timing ของ `_build_ui()`
+  - ใช้ `self.width` แทน `ui.get_screen_size()` ภายใน `layout()` เพื่อขนาดที่ถูกต้อง
+  - รองรับ iPad: คำนวณความกว้าง popup จากขนาดจอจริง เช่น `card_w = min(width-40, 480)` แทน hard-code
+- **Defensive text handling**: ใช้ `.strip()` สองชั้น ทั้งตอนกรอกข้อมูลและตอนแสดงผล
+
+## 8. หมายเหตุสำหรับ AI ตัวใหม่ที่รับช่วงงานต่อ
+
+- โค้ดทั้งหมดต้องรันได้ใน Pythonista เท่านั้น (ไม่ใช่ Python ทั่วไป) — ใช้ module `ui`, `dialogs`, `console` เฉพาะของ Pythonista
+- ห้ามเปลี่ยนจาก WebView table กลับไปเป็น monospace text alignment สำหรับข้อมูลภาษาไทย (จะพังเรื่อง alignment)
+- การ match หมวดคลินิกใช้ชื่อ string ต้องคงไว้แบบนี้เพื่อความ portable
+- ไฟล์โค้ดฉบับปัจจุบันแนบมาพร้อมเอกสารนี้ในชุดเดียวกัน — กรุณาอ่านไฟล์จริงประกอบเอกสารนี้ด้วย เพราะเอกสารนี้เป็นสรุป ไม่ใช่ต้นฉบับ

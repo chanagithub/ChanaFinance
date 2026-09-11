@@ -1,12 +1,6 @@
 # income_entry.py
 # ใช้งานใน Pythonista บน iPhone/iPad
 # วิธีเรียกใช้: import income_entry; income_entry.show(db_path)
-#
-# v2 — ปรับปรุง keyboard handling:
-#   - ScrollView เลื่อนขึ้นได้จนสุดแม้คีย์บอร์ดเปิดอยู่
-#   - auto-scroll ให้ช่องที่กำลังพิมพ์ลอยเหนือคีย์บอร์ด
-#   - แตะพื้นที่ว่างเพื่อปิดคีย์บอร์ด
-#   - ปุ่มใน PickerPopup เลื่อนหนีคีย์บอร์ด
 
 import ui
 import sqlite3
@@ -15,34 +9,6 @@ import datetime
 BORDER_STYLE_ROUNDED = getattr(ui, "INPUT_ROUNDED_RECT", "rounded_rect")
 KEYBOARD_DEFAULT     = getattr(ui, "KEYBOARD_DEFAULT", "default")
 KEYBOARD_DECIMAL_PAD = getattr(ui, "KEYBOARD_DECIMAL_PAD", "decimal_pad")
-
-
-# ─────────────────────────────────────────────
-#  Keyboard helper
-# ─────────────────────────────────────────────
-
-def _kb_height():
-    """ความสูงคีย์บอร์ดโดยประมาณ (รวม toolbar ของ Pythonista)
-    ปรับเลข 340 / 300 ได้ถ้าเลื่อนเกินหรือขาดไปนิดหน่อย"""
-    w, h = ui.get_screen_size()
-    return 340 if min(w, h) >= 700 else 300
-
-
-class _TapCatcher(ui.View):
-    """พื้นที่โปร่งใส แตะแล้วปิดคีย์บอร์ด"""
-
-    def __init__(self, on_tap, **kw):
-        super().__init__(**kw)
-        self._on_tap = on_tap
-        self.background_color = 'clear'
-
-    def touch_ended(self, touch):
-        self._on_tap()
-
-
-def _alert(msg):
-    import console
-    console.alert("แจ้งเตือน", msg, "ตกลง", hide_cancel_button=True)
 
 
 # ─────────────────────────────────────────────
@@ -156,9 +122,6 @@ class PickerPopup(ui.View):
         card.add_subview(self.tv)
 
         btn_y = card.height - 40
-        self._btn_row_y_normal = btn_y          # ตำแหน่งปกติของแถวปุ่ม
-        self._btn_row = []                      # เก็บปุ่มไว้เลื่อนพร้อมกัน
-
         if self.allow_use_text:
             btn_w   = (card.width - 32) / 3
             btn_use = ui.Button(frame=(8, btn_y, btn_w, 36))
@@ -169,7 +132,6 @@ class PickerPopup(ui.View):
             btn_use.action           = self._use_text
             btn_use.flex = "W"
             card.add_subview(btn_use)
-            self._btn_row.append(btn_use)
             btn_add_x    = 16 + btn_w
             btn_cancel_x = 24 + btn_w * 2
         else:
@@ -185,7 +147,6 @@ class PickerPopup(ui.View):
         btn_add.action           = self._add_new
         btn_add.flex = "W"
         card.add_subview(btn_add)
-        self._btn_row.append(btn_add)
 
         btn_cancel = ui.Button(frame=(btn_cancel_x, btn_y, btn_w, 36))
         btn_cancel.title            = "ยกเลิก"
@@ -195,14 +156,9 @@ class PickerPopup(ui.View):
         btn_cancel.action           = self._cancel
         btn_cancel.flex = "W"
         card.add_subview(btn_cancel)
-        self._btn_row.append(btn_cancel)
 
         self.card      = card
         self._filtered = list(self.all_items)
-        self._editing  = False
-        self._tv_h_normal = self.tv.height
-
-    # ── TableView ────────────────────────────────────────
 
     def tableview_number_of_rows(self, tv, section):
         return len(self._filtered)
@@ -217,8 +173,6 @@ class PickerPopup(ui.View):
         self.on_select(item[0], item[1])
         self.close()
 
-    # ── TextField delegate ───────────────────────────────
-
     def textfield_should_change(self, tf, range_, replacement):
         return True
 
@@ -229,41 +183,6 @@ class PickerPopup(ui.View):
         else:
             self._filtered = list(self.all_items)
         self.tv.reload()
-
-    def textfield_did_begin_editing(self, tf):
-        self._editing = True
-        self._move_buttons(True)
-
-    def textfield_did_end_editing(self, tf):
-        self._editing = False
-        ui.delay(self._maybe_lower, 0.1)
-
-    def textfield_should_return(self, tf):
-        tf.end_editing()
-        return True
-
-    def _maybe_lower(self):
-        if not self._editing:
-            self._move_buttons(False)
-
-    def _move_buttons(self, keyboard_up):
-        """เลื่อนแถวปุ่มขึ้นเหนือคีย์บอร์ด + ย่อ TableView ตาม"""
-        if keyboard_up:
-            kb = _kb_height()
-            # ตำแหน่ง y ของ card เทียบกับจอ
-            card_top = self.card.y
-            target_y = self.height - kb - card_top - 44
-            target_y = max(94, min(target_y, self._btn_row_y_normal))
-        else:
-            target_y = self._btn_row_y_normal
-
-        def _anim():
-            for b in self._btn_row:
-                b.y = target_y
-            self.tv.height = max(60, target_y - 94 - 6)
-        ui.animate(_anim, 0.25)
-
-    # ── Actions ──────────────────────────────────────────
 
     def _use_text(self, sender):
         name = self.search_tf.text.strip()
@@ -289,7 +208,6 @@ class PickerPopup(ui.View):
         self.close()
 
     def close(self):
-        self.end_editing()
         self.superview.remove_subview(self)
 
 
@@ -381,10 +299,10 @@ class CalendarPopup(ui.View):
         import calendar
         _, days_in_month = calendar.monthrange(self._year, self._month)
 
-        cell_w      = self.card.width / 7
-        cell_h      = 36
+        cell_w     = self.card.width / 7
+        cell_h     = 36
         row_y_start = 72
-        today       = datetime.date.today()
+        today      = datetime.date.today()
 
         for day in range(1, days_in_month + 1):
             slot = start_wd + day - 1
@@ -442,12 +360,24 @@ class CalendarPopup(ui.View):
 
 
 # ─────────────────────────────────────────────
-#  ฟอร์มหลัก  (ScrollView + keyboard avoidance)
+#  Helper
 # ─────────────────────────────────────────────
+
+def _alert(msg):
+    import console
+    console.alert("แจ้งเตือน", msg, "ตกลง", hide_cancel_button=True)
+
+
+# ─────────────────────────────────────────────
+#  ฟอร์มหลัก  (ใช้ ScrollView เพื่อหนี keyboard)
+# ─────────────────────────────────────────────
+
+# ความสูงเนื้อหาทั้งหมดภายใน scroll
+_FORM_CONTENT_H = 520
 
 class IncomeForm(ui.View):
     """
-    Outer view — จัดการ keyboard
+    Outer view — รับ keyboard notification แล้วปรับ scroll inset
     Inner ScrollView — ห่อ widget ทั้งหมด
     """
 
@@ -462,29 +392,21 @@ class IncomeForm(ui.View):
         self._selected_category_id = None
         self._date_str = datetime.date.today().isoformat()
 
-        # สถานะคีย์บอร์ด
-        self._kb_up       = False
-        self._content_h   = 0
-        self._tap_catcher = None
-        self._text_fields = []
-
-        # ── ScrollView ────────────────────────────────────
+        # ── ScrollView ────────────────────────────────────────
         self._sv = ui.ScrollView()
-        self._sv.frame                  = self.bounds
-        self._sv.flex                   = 'WH'
-        self._sv.background_color       = "#F5F7FA"
+        self._sv.frame              = self.bounds
+        self._sv.flex               = 'WH'
+        self._sv.background_color   = "#F5F7FA"
         self._sv.always_bounce_vertical = True
         self.add_subview(self._sv)
 
         self._build_ui()
 
-    # ── UI ──────────────────────────────────────────────
-
     def _build_ui(self):
-        W   = self.width or 375
-        pad = 16
-        fh  = 44
-        y   = 60
+        W     = self.width or 375   # fallback สำหรับกรณี frame ยังไม่ set
+        pad   = 16
+        fh    = 44   # field height
+        y     = 60
 
         sv = self._sv
 
@@ -494,6 +416,16 @@ class IncomeForm(ui.View):
             l.font       = ("<system>", 13)
             l.text_color = "#888888"
             sv.add_subview(l)
+
+        def field(placeholder, y_pos, keyboard=KEYBOARD_DEFAULT):
+            tf = ui.TextField(frame=(pad, y_pos, W - pad * 2, fh))
+            tf.placeholder       = placeholder
+            tf.border_style      = BORDER_STYLE_ROUNDED
+            tf.background_color  = "white"
+            tf.keyboard_type     = keyboard
+            tf.flex              = "W"
+            sv.add_subview(tf)
+            return tf
 
         def btn(title, y_pos, color="#ECEFF1"):
             b = ui.Button(frame=(pad, y_pos, W - pad * 2, fh))
@@ -506,7 +438,7 @@ class IncomeForm(ui.View):
             return b
 
         # วันที่
-        lbl("วันที่", y); y += 24
+        lbl("วันที่", y);  y += 24
         self.btn_date = btn(f"📅  {self._date_str}", y, "#FFFFFF")
         self.btn_date.border_width = 1
         self.btn_date.border_color = "#CCCCCC"
@@ -514,19 +446,19 @@ class IncomeForm(ui.View):
         y += fh + 16
 
         # รายละเอียด
-        lbl("รายละเอียด", y); y += 24
+        lbl("รายละเอียด", y);  y += 24
         self.btn_detail = btn("แตะเพื่อเลือกรายละเอียด...", y)
         self.btn_detail.action = self._open_detail_picker
         y += fh + 16
 
         # หมวดหมู่
-        lbl("หมวดหมู่", y); y += 24
+        lbl("หมวดหมู่", y);  y += 24
         self.btn_category = btn("แตะเพื่อเลือกหมวดหมู่...", y)
         self.btn_category.action = self._open_category_picker
         y += fh + 16
 
         # จำนวนเงิน + ปุ่ม "หมายเหตุ"
-        lbl("จำนวนเงิน (บาท)", y); y += 24
+        lbl("จำนวนเงิน (บาท)", y);  y += 24
         note_btn_w = 80
         self.tf_amount = ui.TextField(frame=(pad, y, W - pad * 2 - note_btn_w - 8, fh))
         self.tf_amount.placeholder      = "0.00"
@@ -549,112 +481,71 @@ class IncomeForm(ui.View):
         y += fh + 16
 
         # หมายเหตุ
-        lbl("หมายเหตุ (ถ้ามี)", y); y += 24
-        self.tf_note = ui.TextField(frame=(pad, y, W - pad * 2, fh))
-        self.tf_note.placeholder      = "หมายเหตุ..."
-        self.tf_note.border_style     = BORDER_STYLE_ROUNDED
-        self.tf_note.background_color = "white"
-        self.tf_note.keyboard_type    = KEYBOARD_DEFAULT
-        self.tf_note.flex             = "W"
-        sv.add_subview(self.tf_note)
+        lbl("หมายเหตุ (ถ้ามี)", y);  y += 24
+        self.tf_note = field("หมายเหตุ...", y)
+        # เก็บ y ของ tf_note ไว้คำนวณ scroll
+        self._note_y = y
         y += fh + 24
 
-        # ปุ่มบันทึก
-        self.btn_save = ui.Button(frame=(pad, y, W - pad * 2, 50))
-        self.btn_save.title            = "💾  บันทึกรายรับ"
-        self.btn_save.background_color = "#43A047"
-        self.btn_save.tint_color       = "white"
-        self.btn_save.font             = ("<system-bold>", 17)
-        self.btn_save.corner_radius    = 10
-        self.btn_save.flex             = "W"
-        self.btn_save.action           = self._save
-        sv.add_subview(self.btn_save)
-        y += 50 + 32
+        # ปุ่ม Save
+        btn_save = ui.Button(frame=(pad, y, W - pad * 2, 50))
+        btn_save.title            = "💾  บันทึกรายรับ"
+        btn_save.background_color = "#43A047"
+        btn_save.tint_color       = "white"
+        btn_save.font             = ("<system-bold>", 17)
+        btn_save.corner_radius    = 10
+        btn_save.flex             = "W"
+        btn_save.action           = self._save
+        sv.add_subview(btn_save)
+        y += 50 + 32   # padding ล่าง
 
-        # ── ความสูงเนื้อหาจริง ──
-        self._content_h = y
         sv.content_size = (W, y)
 
-        # ── พื้นที่แตะเพื่อปิดคีย์บอร์ด (อยู่หลังสุด ไม่บังปุ่ม) ──
-        self._tap_catcher = _TapCatcher(self._dismiss_keyboard,
-                                        frame=(0, 0, W, y + 400))
-        self._tap_catcher.flex = 'W'
-        sv.add_subview(self._tap_catcher)
-        sv.send_subview_to_back(self._tap_catcher)
+        # delegate ดัก begin/end editing ของ tf_note
+        self.tf_note.delegate = self
 
-        # ── ผูก delegate ให้ทุก TextField ──
-        self._text_fields = [self.tf_amount, self.tf_note]
-        for tf in self._text_fields:
-            tf.delegate = self
-
-    # ── TextField delegate ──────────────────────────────
+    # ── TextField delegate (สำหรับ tf_note) ─────────────────
 
     def textfield_did_begin_editing(self, tf):
-        self._kb_up = True
-        self._expand_for_keyboard()
-        ui.delay(lambda: self._scroll_to_field(tf), 0.05)
+        """เมื่อเริ่มพิมพ์หมายเหตุ ให้เลื่อน scroll ขึ้นเพื่อหนี keyboard"""
+        self._scroll_to_note()
 
     def textfield_did_end_editing(self, tf):
-        self._kb_up = False
-        ui.delay(self._maybe_collapse, 0.1)   # กันวูบตอนสลับช่อง
+        """เมื่อปิด keyboard คืน scroll กลับตำแหน่งปกติ"""
+        self._sv.content_offset = (0, 0)
 
-    def textfield_should_return(self, tf):
-        tf.end_editing()
-        return True
+    # ── Scroll helper ────────────────────────────────────────
 
-    # ── Keyboard / Scroll helper ────────────────────────
+    def _scroll_to_note(self):
+        """
+        คำนวณว่า tf_note อยู่ที่ y เท่าไร แล้ว scroll ให้มันอยู่
+        ประมาณกึ่งกลางพื้นที่เหนือ keyboard (สมมติ keyboard สูง ~260pt)
+        """
+        keyboard_h   = 260          # ค่าประมาณ keyboard iPhone
+        visible_h    = self.height - keyboard_h
+        target_offset = self._note_y - visible_h / 2
+        target_offset = max(0, target_offset)
+        self._sv.content_offset = (0, target_offset)
 
-    def _expand_for_keyboard(self):
-        """เพิ่มที่ว่างด้านล่างเท่าความสูงคีย์บอร์ด -> เลื่อนขึ้นได้จนสุด"""
-        kb = _kb_height()
-        self._sv.content_size = (self._sv.width, self._content_h + kb + 20)
-
-    def _maybe_collapse(self):
-        if self._kb_up:
-            return
-        self._sv.content_size = (self._sv.width, self._content_h)
-
-    def _scroll_to_field(self, tf):
-        """เลื่อนให้ช่องที่กำลังพิมพ์ลอยเหนือคีย์บอร์ด"""
-        kb        = _kb_height()
-        visible_h = self.height - kb
-        margin    = 24
-
-        target  = tf.y + tf.height + margin - visible_h
-        max_off = max(0, self._sv.content_size[1] - self._sv.height)
-        target  = min(max(0, target), max_off)
-
-        def _anim():
-            self._sv.content_offset = (0, target)
-        ui.animate(_anim, 0.25)
-
-    def _dismiss_keyboard(self):
-        for tf in self._text_fields:
-            tf.end_editing()
-        self.end_editing()
-
-    # ── Actions ─────────────────────────────────────────
+    # ── Actions ─────────────────────────────────────────────
 
     def _focus_note(self, sender):
         self.tf_amount.end_editing()
         self.tf_note.begin_editing()
 
     def _open_calendar(self, sender):
-        self._dismiss_keyboard()
         popup = CalendarPopup(
             self._date_str,
             on_date=self._on_date_selected,
             frame=self.bounds,
         )
-        popup.flex = 'WH'
         self.add_subview(popup)
 
     def _on_date_selected(self, date_str):
-        self._date_str      = date_str
+        self._date_str    = date_str
         self.btn_date.title = f"📅  {date_str}"
 
     def _open_detail_picker(self, sender):
-        self._dismiss_keyboard()
         popup = PickerPopup(
             self.db_path,
             "detail_master",
@@ -664,7 +555,6 @@ class IncomeForm(ui.View):
             type_filter="รายรับ",
             allow_use_text=True,
         )
-        popup.flex = 'WH'
         self.add_subview(popup)
 
     def _on_detail_selected(self, item_id, name):
@@ -677,7 +567,6 @@ class IncomeForm(ui.View):
         self.btn_detail.tint_color = "#1B5E20"
 
     def _open_category_picker(self, sender):
-        self._dismiss_keyboard()
         popup = PickerPopup(
             self.db_path,
             "category_income",
@@ -685,17 +574,14 @@ class IncomeForm(ui.View):
             on_select=self._on_category_selected,
             frame=self.bounds,
         )
-        popup.flex = 'WH'
         self.add_subview(popup)
 
     def _on_category_selected(self, item_id, name):
-        self._selected_category_id   = item_id
+        self._selected_category_id = item_id
         self.btn_category.title      = f"✔  {name}"
         self.btn_category.tint_color = "#1B5E20"
 
     def _save(self, sender):
-        self._dismiss_keyboard()
-
         if self._selected_detail_id is None and not self._selected_detail_name:
             _alert("กรุณาเลือกรายละเอียด")
             return
@@ -736,17 +622,14 @@ class IncomeForm(ui.View):
         self._selected_category_id = None
         self._date_str = datetime.date.today().isoformat()
 
-        self.btn_date.title          = f"📅  {self._date_str}"
-        self.btn_detail.title        = "แตะเพื่อเลือกรายละเอียด..."
-        self.btn_detail.tint_color   = "#333333"
-        self.btn_category.title      = "แตะเพื่อเลือกหมวดหมู่..."
+        self.btn_date.title         = f"📅  {self._date_str}"
+        self.btn_detail.title       = "แตะเพื่อเลือกรายละเอียด..."
+        self.btn_detail.tint_color  = "#333333"
+        self.btn_category.title     = "แตะเพื่อเลือกหมวดหมู่..."
         self.btn_category.tint_color = "#333333"
         self.tf_amount.text = ""
         self.tf_note.text   = ""
-
-        # คืนขนาด/ตำแหน่ง scroll
-        self._kb_up = False
-        self._sv.content_size   = (self._sv.width, self._content_h)
+        # คืน scroll กลับบนสุด
         self._sv.content_offset = (0, 0)
 
 
