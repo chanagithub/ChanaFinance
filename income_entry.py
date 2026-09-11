@@ -218,8 +218,8 @@ class PickerPopup(ui.View):
 
     def tableview_did_select(self, tv, section, row):
         item = self._filtered[row]
-        self.on_select(item[0], item[1])
-        self.close()
+        self.search_tf.text = item[1]  # เอาข้อความไปใส่ช่องค้นหา
+        self.search_tf.begin_editing() # โฟกัสช่องค้นหาเพื่อให้แก้ไขต่อได้
 
     # ── TextField delegate ───────────────────────────────
 
