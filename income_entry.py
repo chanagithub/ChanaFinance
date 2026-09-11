@@ -119,7 +119,8 @@ def _save_income(db_path, date_str, detail_id, detail_text, category_id, amount,
 
 class PickerPopup(ui.View):
 
-    def __init__(self, db_path, table, title, on_select, **kwargs):
+    def __init__(self, db_path, table, title, on_select, auto_close=True, **kwargs):
+        self.auto_close = auto_close
         type_filter = kwargs.pop("type_filter", None)
         self.allow_use_text = kwargs.pop("allow_use_text", False)
         super().__init__(**kwargs)
@@ -218,8 +219,22 @@ class PickerPopup(ui.View):
 
     def tableview_did_select(self, tv, section, row):
         item = self._filtered[row]
-        self.search_tf.text = item[1]  # เอาข้อความไปใส่ช่องค้นหา
-        self.search_tf.begin_editing() # โฟกัสช่องค้นหาเพื่อให้แก้ไขต่อได้
+        if self.auto_close:
+
+            # พฤติกรรมเดิม (หมวดหมู่): เลือกแล้วจบเลย
+
+            self.on_select(item[0], item[1])
+
+            self.close()
+
+        else:
+
+            # พฤติกรรมใหม่ (รายละเอียด): เอาไปใส่ช่องค้นหาให้แก้ก่อน
+
+            self.search_tf.text = item[1]
+
+            self.search_tf.begin_editing()
+        
 
     # ── TextField delegate ───────────────────────────────
 
@@ -667,6 +682,7 @@ class IncomeForm(ui.View):
             frame=self.bounds,
             type_filter="รายรับ",
             allow_use_text=True,
+            auto_close=False # <--- ในกรณีรายละเอียด ให้เลือก "ใช้ครั้งนี้" หรือ "เพิ่มรายการนี้" ก่อนปิด popup  แต่ถ้าเป็นหมวดหมู่ ให้ปิด popup ทันทีหลังเลือก
         )
         popup.flex = 'WH'
         self.add_subview(popup)
