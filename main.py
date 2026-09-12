@@ -37,7 +37,10 @@ def settings_action(sender, db_path=None):
         return
 
     if button_index == 1:
-        chanafunction.create_new_file()
+        new_path = chanafunction.create_new_file()
+        if new_path:
+            db_manager.ensure_schema(new_path)
+            show_main_menu(new_path)      # <-- สลับไป DB ใหม่ทันที
     elif button_index == 2:
         if db_path:
             db_manager.open_database_manager(db_path)
@@ -59,7 +62,11 @@ def main():
             hide_cancel_button=True
         )
         if confirm == 1:
-            chanafunction.create_new_file()
+            new_path = chanafunction.create_new_file()
+            if new_path:
+                db_manager.ensure_schema(new_path)
+                show_main_menu(new_path)          # <-- เข้าเมนูต่อทันที ไม่ต้องเปิดแอปใหม่
+            # ถ้า new_path เป็น None (ยกเลิก/error) ก็ปล่อยให้โปรแกรมจบไปเฉยๆ
         else:
             sys.exit(0)
     else:
@@ -68,6 +75,7 @@ def main():
 
         if selected_file_path:
             print('คุณเลือกไฟล์: {}'.format(selected_file_path))
+            db_manager.ensure_schema(selected_file_path)   # <-- เพิ่มบรรทัดนี้
             show_main_menu(selected_file_path)
         else:
             print('ยังไม่ได้เลือกไฟล์ฐานข้อมูล โปรแกรมจะปิดตัวลง')

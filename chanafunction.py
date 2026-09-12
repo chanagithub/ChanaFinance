@@ -118,6 +118,8 @@ def create_new_file():
         create_tables(db_path)
         dialogs.hud_alert('สร้างไฟล์ {} เรียบร้อยแล้ว'.format(file_name), icon='success')
         print('ไฟล์ฐานข้อมูลถูกสร้างที่: {}'.format(db_path))
+        return db_path
     except Exception as e:
         dialogs.hud_alert('เกิดข้อผิดพลาดในการสร้างไฟล์', icon='error')
         print(e)
+        return None

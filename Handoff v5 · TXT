@@ -1,0 +1,127 @@
+================================================================
+PROJECT HANDOFF — แอปบันทึกรายรับ-รายจ่ายส่วนตัว
+Version: v5  |  Updated: 2026-09-11
+================================================================
+
+[0] วิธีใช้ไฟล์นี้
+----------------------------------------------------------------
+แนบไฟล์นี้เป็นข้อความแรกของทุกแชทใหม่ แล้วบอกว่า
+"อ่าน handoff แล้วทำงานต่อจากงานค้างข้อ X"
+เมื่อจบงานแต่ละก้อน ให้ขอ AI ร่าง handoff เวอร์ชันถัดไปแล้วเซฟเป็นไฟล์ใหม่
+(อย่าเซฟทับ — เก็บเวอร์ชันเก่าไว้ย้อนดูเหตุผลการตัดสินใจ)
+
+
+[1] TECH STACK
+----------------------------------------------------------------
+Platform   : Pythonista (iPhone / iPad)
+Language   : Python
+UI         : ui module (native) + ui.WebView สำหรับตาราง HTML
+Database   : SQLite
+Editor     : VS Code (แก้โค้ด) / Pythonista (รันจริง)
+
+
+[2] โครงสร้างไฟล์
+----------------------------------------------------------------
+main.py             : entry point + สร้างไฟล์ DB ใหม่ถ้ายังไม่มี
+db_manager.py       : รวมคำสั่งจัดการฐานข้อมูล
+income_entry.py     : ฟอร์มบันทึกรายรับ (v2.1 — เสร็จสมบูรณ์)
+expense_entry.py    : ฟอร์มบันทึกรายจ่าย (v3 — เสร็จสมบูรณ์ พอร์ตจาก income_entry.py)
+data_viewer.py      : แสดงข้อมูล read-only ผ่าน WebView
+monthly_summary.py  : สรุปรายเดือน
+yearly_summary.py   : สรุปรายปี
+
+
+[3] โครงสร้างฐานข้อมูล
+----------------------------------------------------------------
+Lookup tables:
+  category_income, category_expense, payment_type, detail_master
+
+Transaction tables:
+  income  : date, year, month, detail_id(FK,nullable), detail_text,
+            category_id, amount, note
+  expense : เหมือน income + payment_type_id
+
+ความสัมพันธ์: Transaction N:1 Lookup
+detail_id เป็น NULL/0 ได้ กรณีผู้ใช้พิมพ์รายการเองโดยไม่เลือกจาก master
+(ไม่ต้อง alter schema เพิ่มจาก v4 — payment_type_id มีอยู่แล้วในตาราง expense)
+
+
+[4] การตัดสินใจออกแบบ + เหตุผล  ** อ่านก่อนแก้โค้ด **
+----------------------------------------------------------------
+4.1 Snapshot detail_text
+    เก็บข้อความจริงลงตารางธุรกรรมเลย ไม่ JOIN detail_master ตอนอ่าน
+    WHY: ข้อมูลเก่าไม่เปลี่ยนตามการแก้ชื่อใน master
+         + ผู้ใช้พิมพ์เองได้โดยไม่ต้องเพิ่มเข้า master ก่อน
+    >> อย่าเปลี่ยนไปใช้ JOIN ล้วน
+
+4.2 Portable Clinic Category
+    จับคู่หมวด "คลินิก" ด้วยชื่อ String ไม่ใช่ ID
+    WHY: ย้ายไฟล์ DB ข้ามเครื่องแล้วยังทำงานถูก แม้ ID ไม่ตรงกัน
+    >> อย่า optimize ไปใช้ ID
+
+4.3 Thai Display via WebView
+    ใช้ HTML Table แทน monospace text
+    WHY: ฟอนต์ไทยบน iOS ความกว้างไม่คงที่ จัดคอลัมน์ด้วย space ไม่ตรง
+
+4.4 PickerPopup auto_close (ใหม่ใน v5)
+    ป็อปอัพเลือกรายการมี parameter auto_close แยกพฤติกรรม 2 แบบ:
+      - auto_close=False : ใช้กับ "รายละเอียด" (detail_master)
+        เลือกแล้ว เอาไปใส่ในช่องค้นหาให้แก้ต่อได้ก่อน ไม่ปิด popup ทันที
+        ผู้ใช้ต้องกด "ใช้ครั้งนี้" หรือ "เพิ่มรายการนี้" เพื่อยืนยัน
+      - auto_close=True  : ใช้กับ "หมวดหมู่" และ "ประเภทการชำระ"
+        เลือกแล้วปิด popup ทันที ไม่ต้องกดยืนยันซ้ำ
+    WHY: รายละเอียดมักต้องแก้เล็กน้อยก่อนใช้ (เช่น เพิ่มจำนวนเงินในชื่อ)
+         ส่วนหมวดหมู่/ประเภทการชำระเป็นรายการปิดตายตัว เลือกแล้วจบเลยเร็วกว่า
+    >> เวลาทำ picker ใหม่ ให้เลือก auto_close ตามลักษณะข้อมูล ไม่ใช่ hardcode True เสมอ
+
+
+[5] ปัญหาที่เคยเจอ + วิธีแก้ (อย่าย้อนรอยเดิม)
+----------------------------------------------------------------
+- ฟอนต์ไทยจัดคอลัมน์เพี้ยน           -> ใช้ HTML Table
+- สระอำ U+0E33 นับความกว้างผิด       -> เพิ่ม exception ให้ width = 1
+- AttributeError INPUT_ROUNDED_RECT  -> เข้าถึงผ่าน getattr()
+- layout() ถูกเรียกซ้ำ                -> ใช้ _built guard flag
+- จอ iPad ขนาดต่างกัน                 -> คำนวณขนาดแบบ dynamic
+- AttributeError 'FormX' object has no attribute 'end_editing'
+                                      -> ใช้ ui.end_editing() แทนการเรียกที่ self ตรงๆ
+- ScrollView ไม่มี send_subview_to_back
+                                      -> add subview ที่ต้องการให้อยู่ล่างสุดเป็นตัวแรก
+                                         (ลำดับ add = ลำดับชั้น z-index)
+
+
+[6] สิ่งที่ทำเสร็จแล้ว (สะสมจาก v3-v5)
+----------------------------------------------------------------
+[x] income_entry.py — Keyboard-avoidance เต็มรูปแบบ (ScrollView ขยาย/scroll-to-field/TapCatcher)
+[x] income_entry.py — PickerPopup auto_close logic (v4)
+[x] expense_entry.py — พอร์ต keyboard-avoidance ทั้งหมดจาก income_entry.py มาใช้
+[x] expense_entry.py — พอร์ต PickerPopup auto_close logic มาใช้ ตาม 3 ฟิลด์:
+      1. รายละเอียดรายจ่าย     -> auto_close=False
+      2. หมวดหมู่รายจ่าย        -> auto_close=True
+      3. ประเภทการชำระ         -> auto_close=True
+[x] ทดสอบใช้งานจริงแล้ว — ผู้ใช้ยืนยันว่าใช้ได้ดี
+
+
+[7] งานค้าง (เรียงตามลำดับที่แนะนำ)
+----------------------------------------------------------------
+[ ] 1. db_manager.py : แก้ show_data() ให้รองรับตารางอื่น
+                       นอกเหนือจาก income / expense
+                       (ทำก่อน เพราะเป็นฐานของข้อ 2)
+[ ] 2. data_viewer.py : เพิ่มการแสดงตาราง payment_type
+[ ] 3. main.py : ตรวจสอบ/ทำ logic สร้าง DB ใหม่เมื่อไม่มีไฟล์เดิม
+                 (เขียน draft ไว้แล้วในแชทก่อนหน้า — ต้อง verify ว่า
+                 import sys ถูกเพิ่มแล้วและทดสอบ flow จริง)
+[ ] 4. ตรวจสอบความเรียบร้อยของหน้าจอ monthly_summary.py / yearly_summary.py
+                 ว่ายังทำงานถูกต้องกับ schema ปัจจุบัน (มี detail_text แล้ว)
+
+
+[8] คำแนะนำสำหรับแชทถัดไป
+----------------------------------------------------------------
+- "อ่าน handoff v5 แล้วช่วยเริ่มงานข้อ 1 (แก้ db_manager.py)"
+- ถ้าต้องทำ picker ใหม่ที่ไหน ให้ดูหัวข้อ [4.4] ก่อนตัดสินใจ auto_close
+- ถ้าเจอปัญหาคีย์บอร์ด/scroll ในไฟล์ใหม่ ให้ copy pattern จาก
+  income_entry.py / expense_entry.py (เหมือนกันทุกจุดแล้วตอนนี้)
+  แทนที่จะเขียนใหม่จากศูนย์
+
+================================================================
+END OF HANDOFF v5
+================================================================

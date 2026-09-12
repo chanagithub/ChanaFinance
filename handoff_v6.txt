@@ -1,0 +1,167 @@
+================================================================
+PROJECT HANDOFF — แอปบันทึกรายรับ-รายจ่ายส่วนตัว
+Version: v6  |  Updated: 2026-09-12
+================================================================
+
+[0] วิธีใช้ไฟล์นี้
+----------------------------------------------------------------
+แนบไฟล์นี้เป็นข้อความแรกของทุกแชทใหม่ แล้วบอกว่า
+"อ่าน handoff v6 แล้วทำงานต่อจากงานค้างข้อ X"
+เมื่อจบงานแต่ละก้อน ให้ขอ AI ร่าง handoff เวอร์ชันถัดไป แล้วเซฟเป็นไฟล์ใหม่
+(อย่าเซฟทับ — เก็บเวอร์ชันเก่าไว้ย้อนดูเหตุผลการตัดสินใจ)
+
+** ข้อควรระวังในการสื่อสารกับ AI (บทเรียนจากแชท v5->v6) **
+เวลาส่งโค้ดให้ AI ตรวจ ให้พิมพ์ชื่อไฟล์กำกับไว้บรรทัดแรกเสมอ เช่น
+  # main.py
+เพราะถ้าไม่มี AI อาจเดาชื่อไฟล์ผิดจากเนื้อหาข้างใน และตรวจผิดไฟล์
+
+
+[1] TECH STACK
+----------------------------------------------------------------
+Platform   : Pythonista (iPhone / iPad)
+Language   : Python
+UI         : ui module (native) + ui.WebView สำหรับตาราง HTML
+Database   : SQLite
+Editor     : VS Code (แก้โค้ด) / Pythonista (รันจริง)
+
+
+[2] โครงสร้างไฟล์
+----------------------------------------------------------------
+main.py             : entry point + กำหนด db_path + สร้าง DB ใหม่ถ้ายังไม่มี
+                      (ยังไม่ได้ verify — ดูงานค้างข้อ 1)
+db_manager.py       : จัดการฐานข้อมูล + TableManagerView (เพิ่ม/แก้/ลบ/แสดงข้อมูล)
+                      *** เสร็จสมบูรณ์ ***
+income_entry.py     : ฟอร์มบันทึกรายรับ (v2.1 — เสร็จสมบูรณ์)
+expense_entry.py    : ฟอร์มบันทึกรายจ่าย (v3 — เสร็จสมบูรณ์)
+data_viewer.py      : แสดงข้อมูล read-only ผ่าน WebView
+                      *** เสร็จสมบูรณ์ (ยังปรับหน้าตาได้ถ้าต้องการ) ***
+monthly_summary.py  : สรุปรายเดือน (ยังไม่ verify)
+yearly_summary.py   : สรุปรายปี (ยังไม่ verify)
+
+
+[3] โครงสร้างฐานข้อมูล
+----------------------------------------------------------------
+Lookup tables:
+  category_income, category_expense, payment_type, detail_master
+
+Transaction tables:
+  income  : date, year, month, detail_id(FK,nullable), detail_text,
+            category_id, amount, note
+  expense : เหมือน income + payment_type_id
+
+detail_id เป็น NULL/0 ได้ กรณีผู้ใช้พิมพ์รายการเองโดยไม่เลือกจาก master
+schema ปัจจุบันครบแล้ว ไม่ต้อง alter เพิ่ม
+
+หมายเหตุ: ensure_schema() ใน db_manager.py ใช้ CREATE TABLE IF NOT EXISTS
++ ensure_column() สำหรับ detail_text จึงปลอดภัยกับ DB เก่าและ DB ใหม่
+
+
+[4] การตัดสินใจออกแบบ + เหตุผล  ** อ่านก่อนแก้โค้ด **
+----------------------------------------------------------------
+4.1 Snapshot detail_text
+    เก็บข้อความจริงลงตารางธุรกรรมเลย ไม่ JOIN detail_master ตอนอ่าน
+    WHY: ข้อมูลเก่าไม่เปลี่ยนตามการแก้ชื่อใน master
+         + ผู้ใช้พิมพ์เองได้โดยไม่ต้องเพิ่มเข้า master ก่อน
+    >> อย่าเปลี่ยนไปใช้ JOIN ล้วน
+
+4.2 Portable Clinic Category
+    จับคู่หมวด "คลินิก" ด้วยชื่อ String ไม่ใช่ ID
+    WHY: ย้ายไฟล์ DB ข้ามเครื่องแล้วยังทำงานถูก แม้ ID ไม่ตรงกัน
+    >> อย่า optimize ไปใช้ ID
+
+4.3 Thai Display via WebView
+    ใช้ HTML Table แทน monospace text
+    WHY: ฟอนต์ไทยบน iOS ความกว้างไม่คงที่ จัดคอลัมน์ด้วย space ไม่ตรง
+
+4.4 PickerPopup auto_close
+      - auto_close=False : "รายละเอียด" (detail_master)
+        เลือกแล้วเอาไปใส่ช่องค้นหาให้แก้ต่อได้ ไม่ปิด popup ทันที
+      - auto_close=True  : "หมวดหมู่" และ "ประเภทการชำระ"
+        เลือกแล้วปิดทันที
+    >> ทำ picker ใหม่ที่ไหน ให้เลือก auto_close ตามลักษณะข้อมูล
+
+4.5 Table-driven Schema ใน db_manager.py (ยืนยันใน v6)
+    ใช้ list TABLES เป็นศูนย์กลางนิยามตาราง (name / title / columns)
+    ทุกฟังก์ชัน (insert/update/fetch/form) generate จาก metadata นี้
+    WHY: เพิ่มตารางใหม่ทำได้โดยแก้จุดเดียว ไม่ต้องเขียนฟอร์มใหม่
+    >> เพิ่มตารางใหม่ = เพิ่ม dict ใน TABLES + เพิ่ม method ใน DataViewer
+       + เพิ่ม mapping ใน show_data()
+
+4.6 show_data() ใช้ dict mapping ไปยัง DataViewer
+    WARNING: dict viewer_actions ถูกสร้างตอนเรียก show_data()
+    ถ้า DataViewer ขาด method ใดใน mapping จะเกิด AttributeError ทันที
+    แม้ผู้ใช้ยังไม่ได้เลือกตารางนั้น
+    >> เพิ่ม key ใน mapping เมื่อไหร่ ต้องมี method จริงใน data_viewer.py ด้วยเสมอ
+
+
+[5] ปัญหาที่เคยเจอ + วิธีแก้ (อย่าย้อนรอยเดิม)
+----------------------------------------------------------------
+- ฟอนต์ไทยจัดคอลัมน์เพี้ยน           -> ใช้ HTML Table
+- สระอำ U+0E33 นับความกว้างผิด       -> เพิ่ม exception ให้ width = 1
+- AttributeError INPUT_ROUNDED_RECT  -> เข้าถึงผ่าน getattr()
+- layout() ถูกเรียกซ้ำ                -> ใช้ _built guard flag
+- จอ iPad ขนาดต่างกัน                 -> คำนวณขนาดแบบ dynamic
+- AttributeError 'FormX' has no attribute 'end_editing'
+                                      -> ใช้ ui.end_editing()
+- ScrollView ไม่มี send_subview_to_back
+                                      -> add subview ตัวที่ต้องการให้อยู่ล่างสุดก่อน
+                                         (ลำดับ add = z-index)
+
+
+[6] สิ่งที่ทำเสร็จแล้ว (สะสมจาก v3-v6)
+----------------------------------------------------------------
+[x] income_entry.py — Keyboard-avoidance เต็มรูปแบบ
+[x] income_entry.py — PickerPopup auto_close logic
+[x] expense_entry.py — พอร์ต keyboard-avoidance + auto_close ครบ 3 ฟิลด์
+      1. รายละเอียดรายจ่าย -> auto_close=False
+      2. หมวดหมู่รายจ่าย    -> auto_close=True
+      3. ประเภทการชำระ     -> auto_close=True
+[x] ทดสอบฟอร์มรายรับ/รายจ่ายใช้งานจริงแล้ว — ผู้ใช้ยืนยันว่าใช้ได้ดี
+
+--- ใหม่ใน v6 ---
+[x] db_manager.py — show_data() รองรับครบทุกตารางใน TABLES
+      (category_income, category_expense, payment_type,
+       detail_master, income, expense) ผ่าน dict mapping
+      + มี fallback console.alert กรณีตารางไม่รองรับ
+      >> งานค้างข้อ 1 ของ v5 ปิดแล้ว
+[x] data_viewer.py — มี show_payment_type() ใช้ _build_html_lookup()
+      หัวข้อ 'ประเภทการชำระเงิน' / empty msg 'ยังไม่มีประเภทการชำระเงิน'
+      >> งานค้างข้อ 2 ของ v5 ปิดแล้ว
+[x] ตรวจสอบแล้วว่า db_manager.py ไม่ต้องใช้ import sys
+
+
+[7] งานค้าง (เรียงตามลำดับที่แนะนำ)
+----------------------------------------------------------------
+[ ] 1. main.py : ตรวจสอบ flow จริง  << เริ่มที่นี่
+       - ยังไม่ได้ส่งโค้ด main.py ให้ตรวจ (ที่ส่งมาคือ db_manager.py + data_viewer.py)
+       - สิ่งที่ต้อง verify:
+         (a) กำหนด db_path ที่ไหน / ชี้ไปไฟล์อะไร
+         (b) มีการตรวจว่าไฟล์ DB มีอยู่หรือไม่ ก่อนเรียก ensure_schema()
+         (c) เมนูหลักเรียก income_entry / expense_entry / summary / db_manager ครบไหม
+       - หมายเหตุ: sqlite3.connect() สร้างไฟล์ใหม่อัตโนมัติอยู่แล้ว
+         และ ensure_schema() สร้างตารางให้ครบ จึงอาจไม่ต้องเขียน logic
+         สร้าง DB เพิ่มเลย — ให้ตรวจก่อนค่อยตัดสินใจ
+
+[ ] 2. monthly_summary.py / yearly_summary.py
+       ตรวจว่ายังทำงานถูกต้องกับ schema ปัจจุบัน (มี detail_text / payment_type_id)
+
+[ ] 3. (ไม่เร่งด่วน) ปรับหน้าตา data_viewer.py ให้สวยขึ้น
+       ผู้ใช้ระบุว่า "ทำงานได้ แต่หน้าตายังไม่สวย"
+       ทำทีหลังได้ ไม่กระทบ logic
+
+[ ] 4. (optional) เพิ่ม comment วิธีเรียกใช้ show_payment_type()
+       ที่หัวไฟล์ data_viewer.py ให้เอกสารตรงกับโค้ดจริง
+
+
+[8] คำแนะนำสำหรับแชทถัดไป
+----------------------------------------------------------------
+- เปิดแชทใหม่ด้วย: "อ่าน handoff v6 แล้วเริ่มงานข้อ 1 (ตรวจ main.py)"
+  แล้วแนบโค้ด main.py พร้อมพิมพ์ # main.py กำกับบรรทัดแรก
+- ถ้าต้องทำ picker ใหม่ ให้ดู [4.4] ก่อนตัดสินใจ auto_close
+- ถ้าจะเพิ่มตารางใหม่เข้าระบบ ให้ดู [4.5] และ [4.6] ควบคู่กัน
+- ถ้าเจอปัญหาคีย์บอร์ด/scroll ในไฟล์ใหม่ ให้ copy pattern จาก
+  income_entry.py / expense_entry.py แทนเขียนใหม่จากศูนย์
+
+================================================================
+END OF HANDOFF v6
+================================================================
