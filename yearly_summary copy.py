@@ -6,14 +6,9 @@
 
 import ui
 import sqlite3
-import datetime
 
 CLINIC_INCOME_NAME  = 'รายรับของคลินิก'
 CLINIC_EXPENSE_NAME = 'รายจ่ายของคลินิก'
-
-# ── ค่าคงที่ที่อาจไม่มีใน Pythonista บางเวอร์ชัน ──────────────
-BORDER_ROUNDED = getattr(ui, 'INPUT_ROUNDED_RECT', 3)
-KB_NUMBER_PAD  = getattr(ui, 'KEYBOARD_NUMBER_PAD', 'number-pad')
 
 THAI_MONTHS_SHORT = [
     '', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.',
@@ -26,10 +21,10 @@ THAI_MONTHS_SHORT = [
 # SQL helpers
 # ─────────────────────────────────────────────────────────────
 
-def _fetch_data(db_path, year):
+def _fetch_data(db_path):
     """
-    คืนค่า dict: { month: {'inc': x, 'exp': y, 'clinic_inc': z, 'clinic_exp': w} }
-    เฉพาะปีที่ระบุ (ค.ศ.)
+    คืนค่า dict: { (year, month): {'inc': x, 'exp': y, 'clinic_inc': z, 'clinic_exp': w} }
+    ครอบคลุมทุก year/month ที่มีข้อมูลใน DB
     """
     conn = sqlite3.connect(db_path)
     try:
@@ -37,28 +32,26 @@ def _fetch_data(db_path, year):
 
         # รายรับ — แยกคลินิก vs ไม่ใช่คลินิก
         cur.execute('''
-            SELECT i.month,
+            SELECT i.year, i.month,
                    COALESCE(ci.name, '') AS cat,
                    SUM(i.amount)
             FROM income i
             LEFT JOIN category_income ci ON i.category_id = ci.id
-            WHERE i.year = ?
-            GROUP BY i.month, cat
-            ORDER BY i.month
-        ''', (year,))
+            GROUP BY i.year, i.month, cat
+            ORDER BY i.year, i.month
+        ''')
         income_rows = cur.fetchall()
 
         # รายจ่าย — แยกคลินิก vs ไม่ใช่คลินิก
         cur.execute('''
-            SELECT e.month,
+            SELECT e.year, e.month,
                    COALESCE(ce.name, '') AS cat,
                    SUM(e.amount)
             FROM expense e
             LEFT JOIN category_expense ce ON e.category_id = ce.id
-            WHERE e.year = ?
-            GROUP BY e.month, cat
-            ORDER BY e.month
-        ''', (year,))
+            GROUP BY e.year, e.month, cat
+            ORDER BY e.year, e.month
+        ''')
         expense_rows = cur.fetchall()
 
     finally:
@@ -66,21 +59,21 @@ def _fetch_data(db_path, year):
 
     data = {}
 
-    def _key(m):
-        if m not in data:
-            data[m] = {'inc': 0.0, 'exp': 0.0,
-                       'clinic_inc': 0.0, 'clinic_exp': 0.0}
-        return data[m]
+    def _key(y, m):
+        if (y, m) not in data:
+            data[(y, m)] = {'inc': 0.0, 'exp': 0.0,
+                            'clinic_inc': 0.0, 'clinic_exp': 0.0}
+        return data[(y, m)]
 
-    for m, cat, total in income_rows:
-        d = _key(m)
+    for y, m, cat, total in income_rows:
+        d = _key(y, m)
         if cat == CLINIC_INCOME_NAME:
             d['clinic_inc'] += total
         else:
             d['inc'] += total
 
-    for m, cat, total in expense_rows:
-        d = _key(m)
+    for y, m, cat, total in expense_rows:
+        d = _key(y, m)
         if cat == CLINIC_EXPENSE_NAME:
             d['clinic_exp'] += total
         else:
@@ -115,18 +108,17 @@ def _val_class(n):
         return 'pos'
 
 
-def _build_table_rows(months, data, mode):
+def _build_table_rows(months_keys, data, mode):
     """
-    months = list ของเลขเดือน 1-12 (ครบทุกเดือนของปีที่เลือก)
     mode = 'normal'  → ใช้ inc / exp
     mode = 'clinic'  → ใช้ clinic_inc / clinic_exp
     """
     rows_html = ''
     cumulative = 0.0
 
-    for i, m in enumerate(months):
-        d = data.get(m, {'inc': 0.0, 'exp': 0.0,
-                          'clinic_inc': 0.0, 'clinic_exp': 0.0})
+    for i, (y, m) in enumerate(months_keys):
+        d = data.get((y, m), {'inc': 0.0, 'exp': 0.0,
+                               'clinic_inc': 0.0, 'clinic_exp': 0.0})
         if mode == 'clinic':
             inc = d['clinic_inc']
             exp = d['clinic_exp']
@@ -139,7 +131,7 @@ def _build_table_rows(months, data, mode):
         stripe     = ' stripe' if i % 2 == 1 else ''
         bal_cls    = _val_class(balance)
         cum_cls    = _val_class(cumulative)
-        month_str  = THAI_MONTHS_SHORT[m]
+        month_str  = THAI_MONTHS_SHORT[m] + ' ' + str(y + 543)
 
         rows_html += (
             f'<tr class="data-row{stripe}">'
@@ -153,11 +145,11 @@ def _build_table_rows(months, data, mode):
 
     # แถวสรุปรวม
     if mode == 'clinic':
-        total_inc = sum(data.get(m, {}).get('clinic_inc', 0) for m in months)
-        total_exp = sum(data.get(m, {}).get('clinic_exp', 0) for m in months)
+        total_inc = sum(data.get(k, {}).get('clinic_inc', 0) for k in months_keys)
+        total_exp = sum(data.get(k, {}).get('clinic_exp', 0) for k in months_keys)
     else:
-        total_inc = sum(data.get(m, {}).get('inc', 0) for m in months)
-        total_exp = sum(data.get(m, {}).get('exp', 0) for m in months)
+        total_inc = sum(data.get(k, {}).get('inc', 0) for k in months_keys)
+        total_exp = sum(data.get(k, {}).get('exp', 0) for k in months_keys)
 
     total_bal = total_inc - total_exp
     bal_cls   = _val_class(total_bal)
@@ -174,12 +166,17 @@ def _build_table_rows(months, data, mode):
     return rows_html
 
 
-def _build_html(data, year):
-    thai_year = year + 543
-    months = list(range(1, 13))  # แสดงครบ 12 เดือนเสมอ แม้เดือนไหนไม่มีข้อมูล
+def _build_html(data):
+    if not data:
+        return _build_empty_html()
 
-    normal_rows = _build_table_rows(months, data, 'normal')
-    clinic_rows = _build_table_rows(months, data, 'clinic')
+    months_keys = sorted(data.keys())
+    # หา ปี จาก key แรก (ควรเป็นปีเดียวกันทั้งไฟล์)
+    year     = months_keys[0][0]
+    thai_year = year + 543
+
+    normal_rows = _build_table_rows(months_keys, data, 'normal')
+    clinic_rows = _build_table_rows(months_keys, data, 'clinic')
 
     return f'''<!DOCTYPE html>
 <html lang="th">
@@ -408,9 +405,8 @@ def _build_html(data, year):
 </html>'''
 
 
-def _build_empty_html(year):
-    thai_year = year + 543
-    return f'''<!DOCTYPE html><html><head>
+def _build_empty_html():
+    return '''<!DOCTYPE html><html><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
@@ -419,104 +415,7 @@ def _build_empty_html(year):
          display:flex; align-items:center; justify-content:center;
          height:100vh; margin:0; font-size:16px; }}
 </style></head>
-<body><div>ยังไม่มีข้อมูลของปี {thai_year}</div></body></html>'''
-
-
-# ─────────────────────────────────────────────────────────────
-# Input form (ui.View) — กรอกปีก่อนแสดงสรุป
-# ─────────────────────────────────────────────────────────────
-
-class _YearInputView(ui.View):
-
-    def __init__(self, db_path):
-        super().__init__()
-        self.db_path = db_path
-        self.name    = 'สรุปรายปี'
-        self.background_color = '#0f0f13'
-        self._built  = False  # guard ไม่ให้ build ซ้ำ
-
-    def layout(self):
-        if not self._built:
-            self._built = True
-            self._build_ui()
-
-    def _build_ui(self):
-        W  = self.width
-        sw = min(W, 500)
-        ox = (W - sw) / 2
-
-        now = datetime.date.today()
-
-        # ── Title ──────────────────────────────────────────────
-        lbl_title = ui.Label()
-        lbl_title.text  = 'สรุปรายปี'
-        lbl_title.font  = ('<system-bold>', 20)
-        lbl_title.text_color = '#f0f0f5'
-        lbl_title.alignment  = ui.ALIGN_CENTER
-        lbl_title.frame = (ox, 40, sw, 30)
-        self.add_subview(lbl_title)
-
-        # ── Card background ────────────────────────────────────
-        card = ui.View()
-        card.background_color = '#18181f'
-        card.corner_radius    = 14
-        card.frame = (ox + 12, 86, sw - 24, 116)
-        self.add_subview(card)
-
-        # ── ปี label + field ───────────────────────────────────
-        lbl_y = ui.Label()
-        lbl_y.text       = 'ปี (ค.ศ.)'
-        lbl_y.font       = ('<system>', 13)
-        lbl_y.text_color = '#8888a0'
-        lbl_y.frame      = (ox + 28, 100, sw - 56, 20)
-        self.add_subview(lbl_y)
-
-        self.tf_year = ui.TextField()
-        self.tf_year.text             = str(now.year)
-        self.tf_year.keyboard_type    = KB_NUMBER_PAD
-        self.tf_year.border_style     = BORDER_ROUNDED
-        self.tf_year.background_color = '#22222c'
-        self.tf_year.text_color       = '#000000'
-        self.tf_year.font             = ('<system>', 16)
-        self.tf_year.frame            = (ox + 28, 124, sw - 56, 40)
-        self.add_subview(self.tf_year)
-
-        # ── ปุ่ม แสดงสรุป ──────────────────────────────────────
-        btn = ui.Button()
-        btn.title              = 'แสดงสรุป'
-        btn.font               = ('<system-bold>', 16)
-        btn.background_color   = '#34d399'
-        btn.tint_color         = '#0f0f13'
-        btn.corner_radius      = 12
-        btn.frame              = (ox + 12, 222, sw - 24, 50)
-        btn.action             = self._on_show
-        self.add_subview(btn)
-
-    def _on_show(self, sender):
-        try:
-            year = int(self.tf_year.text.strip())
-            assert 2000 <= year <= 2100
-        except Exception:
-            self._shake(sender)
-            return
-
-        data = _fetch_data(self.db_path, year)
-        if data:
-            html = _build_html(data, year)
-        else:
-            html = _build_empty_html(year)
-
-        result = _ResultView(html)
-        result.present('fullscreen', animated=True)
-
-    def _shake(self, btn):
-        """สั่น button เบาๆ เมื่อ input ผิด"""
-        import math
-        orig_x = btn.x
-        for i in range(6):
-            dx = 6 * math.cos(i * math.pi / 1.5)
-            btn.x = orig_x + dx
-        btn.x = orig_x
+<body><div>ยังไม่มีข้อมูลในไฟล์นี้</div></body></html>'''
 
 
 # ─────────────────────────────────────────────────────────────
@@ -544,7 +443,9 @@ class _ResultView(ui.View):
 # ─────────────────────────────────────────────────────────────
 
 def show(db_path):
+    data = _fetch_data(db_path)
+    html = _build_html(data)
     W, H = ui.get_screen_size()
-    v = _YearInputView(db_path)
+    v = _ResultView(html)
     v.frame = (0, 0, W, H)
     v.present('fullscreen', animated=True)
