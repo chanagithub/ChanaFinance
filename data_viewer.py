@@ -139,7 +139,7 @@ def _today_iso():
 
 def _base_css():
     return """
-  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  * { box-sizing: border-box; margin: 0; padding: 0;  }
   body {
     background: #1c1c1e;
     color: #e5e5ea;
@@ -262,6 +262,68 @@ def _base_css():
   .form .hint { font-size: 12px; color: #636366; margin-top: 5px; }
   .actions { display: flex; gap: 10px; margin-top: 22px; }
   .actions a { flex: 1; text-align: center; padding: 13px 0; border-radius: 10px; font-size: 15px; }
+    .card {
+    background: #2c2c2e;
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+  .card .top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .card .cdate { font-size: 12px; color: #98989f; }
+  .card .cat {
+    font-size: 12px;
+    color: #64b5ff;
+    background: rgba(10,132,255,0.16);
+    padding: 2px 9px;
+    border-radius: 6px;
+  }
+  .card .amt {
+    margin-left: auto;
+    font-size: 17px;
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+  }
+  .card .amt.inc { color: #30d158; }
+  .card .amt.exp { color: #ff453a; }
+  .card .ctitle { font-size: 15px; color: #ffffff; margin-top: 9px; }
+  .card .cnote  { font-size: 12px; color: #98989f; margin-top: 4px; }
+  .card .acts   { display: flex; gap: 8px; margin-top: 12px; }
+  .card .acts a {
+    flex: 1;
+    text-align: center;
+    padding: 10px 0;
+    border-radius: 8px;
+    background: #3a3a3c;
+    color: #e5e5ea;
+    font-size: 13px;
+    touch-action: manipulation;
+  }
+  .card .acts a.del { background: #4a2b2b; color: #ff8a80; }
+  .card .acts a:active { opacity: 0.55; }
+  .lrow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #2c2c2e;
+    border-radius: 10px;
+    padding: 11px 12px;
+    margin-bottom: 8px;
+  }
+  .lrow .lid   { font-size: 12px; color: #636366; min-width: 30px; }
+  .lrow .lname { flex: 1; font-size: 15px; color: #e5e5ea; }
+  .lrow a {
+    width: 40px;
+    height: 34px;
+    line-height: 34px;
+    text-align: center;
+    border-radius: 8px;
+    background: #3a3a3c;
+    font-size: 15px;
+    touch-action: manipulation;
+  }
+  .lrow a.del { background: #4a2b2b; }
+  .lrow a:active { opacity: 0.55; }
+  .empty-box { text-align: center; padding: 30px 0; color: #636366; }
 """
 
 
@@ -325,104 +387,91 @@ def _row_actions(entity, rid):
         '</td>'
     )
 
+def _card_actions(entity, rid):
+    base = 'dv://%s/' + entity + '/' + str(rid)
+    return (
+        '<div class="acts">'
+        '<a href="' + (base % 'edit')   + '">&#9998; แก้ไข</a>'
+        '<a class="del" href="' + (base % 'delete') + '">&#128465; ลบ</a>'
+        '</div>'
+    )
+
 
 def _build_list_txn(entity, title, rows, empty_msg):
     """rows: (id, date, detail_text, category, amount, note)"""
+    amt_cls = 'inc' if entity == 'income' else 'exp'
+
     if rows:
         body = ''
-        for i, r in enumerate(rows):
-            rid, date, detail, category, amount, note = r
-            stripe = ' class="stripe"' if i % 2 == 1 else ''
+        for rid, date, detail, category, amount, note in rows:
+            note_html = ''
+            if str(note or '').strip():
+                note_html = '<div class="cnote">' + _escape(note) + '</div>'
+            cat_html = ''
+            if str(category or '').strip():
+                cat_html = '<span class="cat">' + _escape(category) + '</span>'
             body += (
-                '<tr' + stripe + '>'
-                '<td class="date">' + _escape(date) + '</td>'
-                '<td>' + _escape(detail) + '</td>'
-                '<td>' + _escape(category) + '</td>'
-                '<td class="amount">' + _fmt_amount(amount) + '</td>'
-                '<td class="note">' + _escape(note) + '</td>'
-                + _row_actions(entity, rid) +
-                '</tr>\n'
+                '<div class="card">'
+                '<div class="top">'
+                '<span class="cdate">' + _escape(date) + '</span>'
+                + cat_html +
+                '<span class="amt ' + amt_cls + '">' + _fmt_amount(amount) + '</span>'
+                '</div>'
+                '<div class="ctitle">' + _escape(detail) + '</div>'
+                + note_html
+                + _card_actions(entity, rid) +
+                '</div>\n'
             )
     else:
-        body = '<tr><td colspan="6" class="empty">' + _escape(empty_msg) + '</td></tr>\n'
+        body = '<div class="empty-box">' + _escape(empty_msg) + '</div>'
 
-    inner = (
-        _toolbar(entity, len(rows)) +
-        '<div class="table-wrap"><table>'
-        '<thead><tr>'
-        '<th>วันที่</th><th>รายการ</th><th>หมวดหมู่</th>'
-        '<th class="amount">จำนวนเงิน</th><th>หมายเหตุ</th><th class="act">จัดการ</th>'
-        '</tr></thead>'
-        '<tbody>' + body + '</tbody>'
-        '</table></div>'
+    return _page(title, _toolbar(entity, len(rows)) + body)
+
+
+def _lookup_row(entity, rid, name):
+    base = 'dv://%s/' + entity + '/' + str(rid)
+    return (
+        '<div class="lrow">'
+        '<span class="lid">' + _escape(str(rid)) + '</span>'
+        '<span class="lname">' + _escape(name) + '</span>'
+        '<a href="' + (base % 'edit')   + '">&#9998;</a>'
+        '<a class="del" href="' + (base % 'delete') + '">&#128465;</a>'
+        '</div>\n'
     )
-    return _page(title, inner)
 
 
 def _build_list_lookup(entity, title, rows, empty_msg):
     """rows: (id, name)"""
     if rows:
         body = ''
-        for i, (rid, name) in enumerate(rows):
-            stripe = ' class="stripe"' if i % 2 == 1 else ''
-            body += (
-                '<tr' + stripe + '>'
-                '<td class="rid">' + _escape(str(rid)) + '</td>'
-                '<td>' + _escape(name) + '</td>'
-                + _row_actions(entity, rid) +
-                '</tr>\n'
-            )
+        for rid, name in rows:
+            body += _lookup_row(entity, rid, name)
     else:
-        body = '<tr><td colspan="3" class="empty">' + _escape(empty_msg) + '</td></tr>\n'
-
-    inner = (
-        _toolbar(entity, len(rows)) +
-        '<div class="table-wrap"><table>'
-        '<thead><tr>'
-        '<th style="width:50px;text-align:center">ID</th><th>ชื่อ</th>'
-        '<th class="act">จัดการ</th>'
-        '</tr></thead>'
-        '<tbody>' + body + '</tbody>'
-        '</table></div>'
-    )
-    return _page(title, inner)
+        body = '<div class="empty-box">' + _escape(empty_msg) + '</div>'
+    return _page(title, _toolbar(entity, len(rows)) + body)
 
 
 def _detail_section(label, rows, open_attr):
     count = len(rows)
     if rows:
         body = ''
-        for i, (rid, name) in enumerate(rows):
-            stripe = ' class="stripe"' if i % 2 == 1 else ''
-            body += (
-                '<tr' + stripe + '>'
-                '<td class="rid">' + _escape(str(rid)) + '</td>'
-                '<td>' + _escape(name) + '</td>'
-                + _row_actions('detail_master', rid) +
-                '</tr>\n'
-            )
+        for rid, name in rows:
+            body += _lookup_row('detail_master', rid, name)
     else:
-        body = '<tr><td colspan="3" class="empty">ยังไม่มีข้อมูล</td></tr>\n'
+        body = '<div class="empty-box">ยังไม่มีข้อมูล</div>'
 
     add_url = 'dv://new/detail_master?type=' + urllib.parse.quote(label)
     return (
         '<details ' + open_attr + '>'
         '<summary>' + _escape(label) + ' (' + str(count) + ' รายการ)</summary>'
-        '<div class="toolbar" style="padding-top:10px">'
+        '<div class="toolbar" style="padding:10px 2px">'
         '<span class="count"></span>'
         '<a class="btn" href="' + add_url + '">+ เพิ่ม' + _escape(label) + '</a>'
         '</div>'
-        '<div class="table-wrap">'
-        '<table>'
-        '<thead><tr>'
-        '<th style="width:50px;text-align:center">ID</th>'
-        '<th>ชื่อรายละเอียด</th>'
-        '<th class="act">จัดการ</th>'
-        '</tr></thead>'
-        '<tbody>' + body + '</tbody>'
-        '</table></div>'
+        + body +
         '</details>'
     )
+
 
 
 def _build_list_detail(income_rows, expense_rows):
@@ -600,6 +649,7 @@ class _EditorView(ui.View):
         except Exception as err:
             console.hud_alert('ผิดพลาด: ' + str(err), 'error', 2.0)
 
+    @ui.in_background
     def _do_delete(self, entity, rid):
         try:
             console.alert('ยืนยันการลบ',
@@ -609,7 +659,7 @@ class _EditorView(ui.View):
             return
         ok, msg = self.viewer.delete_row(entity, rid)
         console.hud_alert(msg, 'success' if ok else 'error', 1.2)
-        self.render_list()
+        ui.delay(self.render_list, 0.01)
 
     def _do_save(self, entity, query):
         raw = query.get('data', [''])[0]
