@@ -210,12 +210,12 @@ def _base_css():
   td.act    { white-space: nowrap; text-align: center; }
   .icon {
     display: inline-block;
-    padding: 0 12px;
-    height: 32px;
-    line-height: 32px;
+    width: 36px;        /* กำหนดความกว้างให้เป็นสี่เหลี่ยมจัตุรัส */
+    height: 36px;       /* กำหนดความสูง */
+    line-height: 36px;  /* จัดตัวอักษรให้อยู่ตรงกลาง */
     text-align: center;
-    border-radius: 6px;
-    font-size: 14px;
+    border-radius: 8px;
+    font-size: 18px;    /* ขนาดไอคอน */
     margin: 0 4px;
     text-decoration: none;
     background: #333336; 
@@ -430,19 +430,17 @@ def _build_list_txn(entity, title, rows, empty_msg):
 
     return _page(title, _toolbar(entity, len(rows)) + body)
 
-
 def _lookup_row(entity, rid, name):
     base = 'dv://%s/' + entity + '/' + str(rid)
     return (
         '<div class="lrow">'
         '<span class="lid">' + _escape(str(rid)) + '</span>'
         '<span class="lname">' + _escape(name) + '</span>'
-        '<a class="icon edit" href="' + (base % 'edit') + '">แก้ไข</a>'
-        '<a class="icon del" href="' + (base % 'delete') + '">ลบ</a>'
+        '<a class="icon edit" href="' + (base % 'edit') + '">&#9998;</a>'
+        '<a class="icon del" href="' + (base % 'delete') + '">&#128465;</a>'
         '</div>\n'
     )
-
-
+    
 def _build_list_lookup(entity, title, rows, empty_msg):
     """rows: (id, name)"""
     if rows:
