@@ -230,10 +230,13 @@ def _base_css():
   }
   
   /* สีสดใสสำหรับ ลบ (แดงสว่าง) */
+  /* แดงที่สดและสว่างขึ้น */
   .icon.del { 
-    background: #FF3B30; 
-    color: #ffffff; 
+    background: #FF0000; 
+    color: #FFFFFF;
+    font-weight: bold; /* เพิ่มความหนาให้ไอคอนถังขยะดูเด่นขึ้นด้วย */
   }
+
   
   .footer   { text-align: center; padding: 12px 0 6px 0; font-size: 12px; color: #636366; }
   details { margin-bottom: 12px; border-radius: 8px; overflow: hidden; }
