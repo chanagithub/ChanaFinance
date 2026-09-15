@@ -210,19 +210,31 @@ def _base_css():
   td.act    { white-space: nowrap; text-align: center; }
   .icon {
     display: inline-block;
-    width: 36px;        /* กำหนดความกว้างให้เป็นสี่เหลี่ยมจัตุรัส */
-    height: 36px;       /* กำหนดความสูง */
-    line-height: 36px;  /* จัดตัวอักษรให้อยู่ตรงกลาง */
+    width: 36px;
+    height: 36px;
+    line-height: 36px;
     text-align: center;
     border-radius: 8px;
-    font-size: 18px;    /* ขนาดไอคอน */
+    font-size: 18px;
     margin: 0 4px;
     text-decoration: none;
-    background: #333336; 
+    /* พื้นหลังเดิมของปุ่มไอคอนอื่นๆ (ถ้ามี) */
+    background: #444447; 
     color: #ffffff;
   }
-  .icon.edit { background: #2c5282; color: #90cdf4; }
-  .icon.del  { background: #742a2a; color: #feb2b2; }
+  
+  /* สีสดใสสำหรับ แก้ไข (น้ำเงินสว่าง) */
+  .icon.edit { 
+    background: #007AFF; 
+    color: #ffffff; 
+  }
+  
+  /* สีสดใสสำหรับ ลบ (แดงสว่าง) */
+  .icon.del { 
+    background: #FF3B30; 
+    color: #ffffff; 
+  }
+  
   .footer   { text-align: center; padding: 12px 0 6px 0; font-size: 12px; color: #636366; }
   details { margin-bottom: 12px; border-radius: 8px; overflow: hidden; }
   summary {
