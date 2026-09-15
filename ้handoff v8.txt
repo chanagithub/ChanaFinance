@@ -1,0 +1,299 @@
+================================================================
+PROJECT HANDOFF — แอปบันทึกรายรับ-รายจ่ายส่วนตัว
+Version: v8  |  Updated: 2026-09-13
+================================================================
+
+[0] วิธีใช้ไฟล์นี้
+----------------------------------------------------------------
+แนบไฟล์นี้เป็นข้อความแรกของทุกแชทใหม่ แล้วบอกว่า
+"อ่าน handoff v8 แล้วทำงานต่อจากงานค้างข้อ X"
+เมื่อจบงานแต่ละก้อน ให้ขอ AI ร่าง handoff เวอร์ชันถัดไป แล้วเซฟเป็นไฟล์ใหม่
+(อย่าเซฟทับ — เก็บเวอร์ชันเก่าไว้ย้อนดูเหตุผลการตัดสินใจ)
+
+** ข้อควรระวังในการสื่อสารกับ AI **
+เวลาส่งโค้ดให้ AI ตรวจ ให้พิมพ์ชื่อไฟล์กำกับไว้บรรทัดแรกเสมอ เช่น
+  # main.py
+เพราะถ้าไม่มี AI อาจเดาชื่อไฟล์ผิดจากเนื้อหาข้างใน และตรวจผิดไฟล์
+
+[1] TECH STACK
+----------------------------------------------------------------
+Platform   : Pythonista (iPhone / iPad)
+Language   : Python
+UI         : ui module (native) + ui.WebView สำหรับตาราง/ฟอร์ม HTML
+Database   : SQLite
+Editor     : VS Code (แก้โค้ด) / Pythonista (รันจริง)
+
+[2] โครงสร้างไฟล์
+----------------------------------------------------------------
+main.py             : entry point + เลือก/สร้าง DB + เรียก ensure_schema()
+                      *** เสร็จสมบูรณ์ (verify แล้วใน v7) ***
+chanafunction.py    : create_new_file() + สร้างตารางเริ่มต้น
+                      *** เสร็จสมบูรณ์ (แก้ return path แล้วใน v7) ***
+db_manager.py       : จัดการฐานข้อมูล + TableManagerView (เพิ่ม/แก้/ลบ/แสดงข้อมูล)
+                      + ensure_schema() / ensure_column()
+                      *** เสร็จสมบูรณ์ — บทบาทเปลี่ยนเป็น admin/fallback (ดู 4.9) ***
+income_entry.py     : ฟอร์มบันทึกรายรับ (v2.1 — เสร็จสมบูรณ์)
+expense_entry.py    : ฟอร์มบันทึกรายจ่าย (v3 — เสร็จสมบูรณ์)
+data_viewer.py      : *** v3 — READ/WRITE ครบ (ใหม่ใน v8) ***
+                      ดู/เพิ่ม/แก้ไข/ลบ ได้จากหน้า HTML โดยตรง
+                      ผ่าน custom URL scheme dv://
+                      ผู้ใช้ทดสอบบนเครื่องจริงแล้ว ใช้งานได้ครบทุกปุ่ม
+monthly_summary.py  : สรุปรายเดือน (กรอกเดือน+ปี แล้วแสดงสรุป)
+                      *** เสร็จสมบูรณ์ (verify แล้วใน v7) ***
+yearly_summary.py   : สรุปรายปี (กรอกปี แล้วแสดงสรุปครบ 12 เดือน)
+                      *** เสร็จสมบูรณ์ (ปรับ flow + แก้บั๊กใน v7) ***
+
+[3] โครงสร้างฐานข้อมูล
+----------------------------------------------------------------
+Lookup tables:
+  category_income(id, name)
+  category_expense(id, name)
+  payment_type(id, name)
+  detail_master(id, detail_name, type)   -- type = 'รายรับ' | 'รายจ่าย'
+
+Transaction tables:
+  income  : id, date, year, month, detail_id(FK,nullable), detail_text,
+            category_id, amount, note
+  expense : เหมือน income + payment_type_id
+
+detail_id เป็น NULL/0 ได้ กรณีผู้ใช้พิมพ์รายการเองโดยไม่เลือกจาก master
+schema ปัจจุบันครบแล้ว ไม่ต้อง alter เพิ่ม
+
+ensure_schema() ใน db_manager.py ใช้ CREATE TABLE IF NOT EXISTS
++ ensure_column() สำหรับ detail_text จึงปลอดภัยกับ DB เก่าและ DB ใหม่
+
+** สังเกตชื่อคอลัมน์ไม่สม่ำเสมอ **
+  lookup ทั่วไปใช้ 'name' แต่ detail_master ใช้ 'detail_name'
+  data_viewer.py จัดการด้วย metadata key 'name_col' + normalize เป็น
+  'name' ก่อนส่งเข้าฟอร์ม >> ถ้าเพิ่มตาราง lookup ใหม่ ต้องระบุ name_col
+
+[4] การตัดสินใจออกแบบ + เหตุผล  ** อ่านก่อนแก้โค้ด **
+----------------------------------------------------------------
+4.1 Snapshot detail_text
+    เก็บข้อความจริงลงตารางธุรกรรมเลย ไม่ JOIN detail_master ตอนอ่าน
+    WHY: ข้อมูลเก่าไม่เปลี่ยนตามการแก้ชื่อใน master
+         + ผู้ใช้พิมพ์เองได้โดยไม่ต้องเพิ่มเข้า master ก่อน
+    >> อย่าเปลี่ยนไปใช้ JOIN ล้วน
+    >> ยืนยันแล้วว่า monthly_summary.py / yearly_summary.py ไม่แตะ
+       field นี้เลย (สรุปแค่ระดับหมวดหมู่)
+    >> ฟอร์มแก้ไขใน data_viewer.py v3 ก็ยึดหลักเดียวกัน: เลือกจาก
+       dropdown แล้ว JS syncDetail() เติมค่าลงช่อง text ให้แก้ต่อได้
+       ถ้าไม่เลือกก็เก็บ detail_id = NULL แต่ detail_text ยังมีค่า
+
+4.2 Portable Clinic Category
+    จับคู่หมวด "คลินิก" ด้วยชื่อ String ไม่ใช่ ID
+    WHY: ย้ายไฟล์ DB ข้ามเครื่องแล้วยังทำงานถูก แม้ ID ไม่ตรงกัน
+    >> อย่า optimize ไปใช้ ID
+    >> monthly_summary.py / yearly_summary.py ใช้ string compare
+       (CLINIC_INCOME_NAME / CLINIC_EXPENSE_NAME) ถูกต้องทั้งคู่
+
+4.3 Thai Display via WebView
+    ใช้ HTML แทน monospace text
+    WHY: ฟอนต์ไทยบน iOS ความกว้างไม่คงที่ จัดคอลัมน์ด้วย space ไม่ตรง
+
+4.4 PickerPopup auto_close (ใช้ในฟอร์ม native เท่านั้น)
+      - auto_close=False : "รายละเอียด" (detail_master)
+      - auto_close=True  : "หมวดหมู่" และ "ประเภทการชำระ"
+    >> ทำ picker ใหม่ที่ไหน ให้เลือก auto_close ตามลักษณะข้อมูล
+    >> ไม่เกี่ยวกับ data_viewer.py ซึ่งใช้ <select> ของ HTML แทน
+
+4.5 Table-driven Schema ใน db_manager.py
+    ใช้ list TABLES เป็นศูนย์กลางนิยามตาราง (name / title / columns)
+    >> เพิ่มตารางใหม่ = เพิ่ม dict ใน TABLES + เพิ่ม method ใน DataViewer
+       + เพิ่ม mapping ใน show_data()
+
+4.6 show_data() ใช้ dict mapping ไปยัง DataViewer
+    WARNING: dict viewer_actions ถูกสร้างตอนเรียก show_data()
+    ถ้า DataViewer ขาด method ใดใน mapping จะเกิด AttributeError ทันที
+    แม้ผู้ใช้ยังไม่ได้เลือกตารางนั้น
+    >> เพิ่ม key ใน mapping เมื่อไหร่ ต้องมี method จริงใน data_viewer.py ด้วย
+
+4.7 สรุปรายปี (yearly_summary.py) ใช้ flow "กรอกปีก่อน" (ตัดสินใจใน v7)
+    WHY: pattern เดียวกับ monthly_summary.py + query เร็วกว่าเพราะ
+         filter WHERE year = ? ตั้งแต่ต้น
+    ตารางสรุปแสดงครบ 12 เดือนเสมอ แม้เดือนไหนไม่มีข้อมูล (ยอด 0.00)
+    >> ถ้าจะทำสรุปหลายปีเทียบกัน ให้เพิ่มเป็นไฟล์ใหม่แยก
+       ไม่ใช่เปลี่ยน yearly_summary.py กลับไปแบบเดิม
+
+--- ใหม่ใน v8 ---
+
+4.8 data_viewer.py ใช้ HTML ↔ Python bridge ผ่าน custom URL scheme
+    ทุก action ส่งกลับ Python เป็น URL รูปแบบ:
+      dv://new/<entity>              -> เปิดฟอร์มเพิ่ม
+      dv://new/<entity>?type=รายรับ  -> เปิดฟอร์มเพิ่ม พร้อม preset (detail_master)
+      dv://edit/<entity>/<id>        -> เปิดฟอร์มแก้ไข
+      dv://delete/<entity>/<id>      -> ลบ (มี confirm)
+      dv://cancel/<entity>           -> กลับไปหน้า list
+      dv://save/<entity>?data=<json> -> บันทึก (JS รวมค่าจาก [data-key])
+    ดักที่ webview_should_start_load() แล้ว return False เพื่อไม่ให้ navigate จริง
+    WHY: ได้ทั้ง CRUD ในหน้าเดียว ไม่ต้องสลับไป native form
+         และ render_list() ใหม่หลังบันทึก = refresh อัตโนมัติ
+    >> เพิ่ม action ใหม่ = เพิ่ม branch ใน _dispatch()
+
+4.9 บทบาทซ้อนกันระหว่าง data_viewer.py กับ db_manager.TableManagerView
+    ตอนนี้แก้ lookup table ได้ 2 ทาง จึงกำหนดบทบาทชัดเจนว่า:
+      - data_viewer.py          = ทางหลักสำหรับผู้ใช้ทั่วไป (UI สวย ใช้ง่าย)
+      - db_manager.TableManager = ทาง admin / fallback เวลา data_viewer พัง
+    >> อย่าลบ TableManagerView ทิ้ง เก็บไว้เป็นทางออกฉุกเฉิน
+    >> ถ้าแก้ logic validation ที่ใดที่หนึ่ง ให้เช็คอีกที่ด้วยว่าไม่ขัดกัน
+
+4.10 Delete guard ใน data_viewer.py
+     ลบ lookup ที่ยังถูกอ้างอิงอยู่ไม่ได้ เช็คด้วย _delete_guard():
+       category_income  -> income.category_id
+       category_expense -> expense.category_id
+       payment_type     -> expense.payment_type_id
+       detail_master    -> income.detail_id + expense.detail_id
+     WHY: กัน orphan data / กันรายงานสรุปเพี้ยนย้อนหลัง
+     income / expense ลบได้อิสระ ไม่มี guard
+     >> เพิ่มตาราง lookup ใหม่ ต้องเพิ่ม entry ใน dict checks ด้วย
+
+4.11 Layout เป็น Card ไม่ใช่ Table (สำหรับหน้า list ใน data_viewer.py)
+     WHY (สำคัญมาก): เดิมใช้ <table> ครอบด้วย .table-wrap ที่มี
+          overflow-x:auto + -webkit-overflow-scrolling:touch
+          WKWebView ตีความ tap ในคอนเทนเนอร์ที่เลื่อนแนวนอนได้ว่าเป็น
+          gesture เลื่อน ทำให้ลิงก์ในตาราง "กดไม่ติด" เลย
+          ปุ่ม + เพิ่ม ที่อยู่นอก .table-wrap กดได้ปกติ = เบาะแสชี้ชัด
+     วิธีแก้: เปลี่ยน list เป็น card/row layout ไม่มี overflow-x เลย
+     ได้ผลพลอยได้คือหน้าตาสวยขึ้นตามงานค้างข้อ 1 ของ v7 พอดี
+     >> อย่าเอา <table> + overflow-x กลับมาใช้ในหน้าที่มีปุ่มกดเด็ดขาด
+     >> ฟอร์ม (.form) ไม่มีปัญหานี้ เพราะไม่ได้อยู่ใน overflow container
+
+4.12 console.alert() ต้องรันใน background thread
+     ใส่ @ui.in_background บน _do_delete()
+     WHY: console.alert() เป็น blocking call ถ้ารันบน main thread
+          UI จะค้างแข็ง dialog ไม่โผล่
+     และเมื่ออยู่ background แล้ว การสั่ง render ต้องโยนกลับ main thread
+     ด้วย ui.delay(self.render_list, 0.01)
+     >> _do_save() ไม่ต้องใส่ เพราะถูกเรียกผ่าน ui.delay() อยู่แล้ว
+        และ console.hud_alert() ไม่ blocking
+     >> ที่ไหนก็ตามที่จะเรียก console.alert() ให้เช็ค thread ก่อนเสมอ
+
+[5] ปัญหาที่เคยเจอ + วิธีแก้ (อย่าย้อนรอยเดิม)
+----------------------------------------------------------------
+- ฟอนต์ไทยจัดคอลัมน์เพี้ยน           -> ใช้ HTML
+- สระอำ U+0E33 นับความกว้างผิด       -> เพิ่ม exception ให้ width = 1
+- AttributeError INPUT_ROUNDED_RECT  -> เข้าถึงผ่าน getattr()
+- layout() ถูกเรียกซ้ำ                -> ใช้ _built guard flag
+- จอ iPad ขนาดต่างกัน                 -> คำนวณขนาดแบบ dynamic
+- AttributeError 'FormX' has no attribute 'end_editing'
+                                      -> ใช้ ui.end_editing()
+- ScrollView ไม่มี send_subview_to_back
+                                      -> add subview ตัวที่ต้องการให้อยู่ล่างสุดก่อน
+                                         (ลำดับ add = z-index)
+- ฟังก์ชัน helper ที่คืนค่าไม่ครบทุก branch (implicit None)
+                                      -> ตรวจด้วย "possibly unbound" warning
+                                         จาก linter เป็นสัญญาณเตือน
+- CSS ใน string ธรรมดา (ไม่ใช่ f-string) ใช้ {{ }} ผิดที่
+                                      -> ถ้าไม่ใช่ f-string ต้องใช้ { } เดี่ยว
+                                         (เจอใน _build_empty_html ของ
+                                         yearly_summary.py แก้แล้วใน v7)
+
+--- ใหม่ใน v8 ---
+- ลิงก์/ปุ่มใน WebView กดไม่ติด (แต่ปุ่มนอกตารางกดได้)
+                                      -> สาเหตุคือ overflow-x:auto +
+                                         -webkit-overflow-scrolling:touch
+                                         ครอบอยู่ ดู [4.11]
+                                      -> แก้ด้วยการเลิกใช้ table wrapper
+                                         เปลี่ยนเป็น card layout
+- UI ค้างตอนกดลบ / dialog ไม่โผล่     -> console.alert() บล็อก main thread
+                                         ใส่ @ui.in_background ดู [4.12]
+- render หน้าจอจาก background thread ไม่มีผล
+                                      -> ห่อด้วย ui.delay(fn, 0.01) เสมอ
+- -webkit-tap-highlight-color: transparent
+                                      -> ทำให้ผู้ใช้ไม่รู้ว่ากดโดนไหม
+                                         เอาออก + ใช้ a:active { opacity }
+                                         ให้ feedback แทน
+- ปุ่มเล็กเกินกดยากบนมือถือ            -> ปุ่ม action ในการ์ดใช้ flex:1
+                                         padding 10px ขึ้นไป
+                                         + touch-action: manipulation
+
+[6] สิ่งที่ทำเสร็จแล้ว (สะสมจาก v3-v8)
+----------------------------------------------------------------
+[x] income_entry.py — Keyboard-avoidance เต็มรูปแบบ
+[x] income_entry.py — PickerPopup auto_close logic
+[x] expense_entry.py — พอร์ต keyboard-avoidance + auto_close ครบ 3 ฟิลด์
+[x] ทดสอบฟอร์มรายรับ/รายจ่ายใช้งานจริงแล้ว — ผู้ใช้ยืนยันว่าใช้ได้ดี
+[x] db_manager.py — show_data() รองรับครบทุกตารางใน TABLES
+[x] main.py — verify ครบ 3 จุด + แก้ flow gap create_new_file() (v7)
+[x] chanafunction.py — create_new_file() return db_path / None (v7)
+[x] monthly_summary.py — ตรวจครบ 3 จุด ผ่านทุกจุด (v7)
+[x] yearly_summary.py — แก้บั๊ก {{ }} + ปรับ flow "กรอกปีก่อน" (v7)
+
+--- ใหม่ใน v8 ---
+[x] data_viewer.py v3 — ยกเครื่องเป็น READ/WRITE เต็มรูปแบบ
+      >> งานค้างข้อ 1 ของ v7 ปิดแล้ว (และได้ CRUD แถมมาด้วย)
+[x] data_viewer.py — เพิ่ม metadata _ENTITIES เป็นศูนย์กลางนิยาม 6 entity
+      (income / expense / category_income / category_expense /
+       payment_type / detail_master) ฟอร์มทั้งหมด generate จากตรงนี้
+[x] data_viewer.py — เพิ่ม/แก้ไข/ลบ ครบทุกตาราง ผ่านหน้า HTML
+[x] data_viewer.py — validation ครบ: วันที่, detail_text ว่าง, หมวดหมู่,
+      ประเภทการชำระ, จำนวนเงินแปลงไม่ได้, ชื่อซ้ำ (IntegrityError)
+[x] data_viewer.py — delete guard กัน orphan data ดู [4.10]
+[x] data_viewer.py — แก้บั๊กปุ่มกดไม่ติด เปลี่ยนเป็น card layout ดู [4.11]
+[x] data_viewer.py — แก้ UI ค้างตอนลบ ด้วย @ui.in_background ดู [4.12]
+[x] data_viewer.py — dark theme + card layout สอดคล้องกับ
+      monthly_summary.py / yearly_summary.py แล้ว
+[x] ผู้ใช้ทดสอบบนเครื่องจริง — ปุ่มเพิ่ม / แก้ไข / ลบ ใช้งานได้ครบ
+[x] กำหนดบทบาท data_viewer vs TableManagerView ชัดเจน ดู [4.9]
+
+[7] งานค้าง (เรียงตามลำดับที่แนะนำ)
+----------------------------------------------------------------
+[ ] 1. ทดสอบ end-to-end ทั้ง flow จริงบน Pythonista  << แนะนำทำก่อน
+       เดิมคือข้อ 3 ของ v7 แต่ตอนนี้สำคัญขึ้นเพราะ data_viewer.py
+       เขียนข้อมูลลง DB ได้แล้ว ไม่ใช่ read-only อีกต่อไป
+       checklist ที่ควรไล่:
+         [ ] สร้างไฟล์ DB ใหม่จาก main.py
+         [ ] เพิ่มหมวดหมู่ / detail / payment_type ผ่าน data_viewer
+         [ ] กรอกรายรับ 2-3 รายการผ่าน income_entry.py
+         [ ] กรอกรายจ่าย 2-3 รายการผ่าน expense_entry.py
+         [ ] แก้ไขรายการผ่าน data_viewer แล้วเช็คว่า year/month
+             อัปเดตตามวันที่ใหม่จริง (สำคัญ — สรุปพึ่ง 2 คอลัมน์นี้)
+         [ ] ลบรายการแล้วเช็คว่ายอดสรุปลดลงตาม
+         [ ] ลอง ลบหมวดหมู่ที่ยังมีธุรกรรมใช้อยู่ -> ต้องขึ้นเตือน
+         [ ] เปิดสรุปรายเดือน / รายปี เทียบตัวเลขว่าตรงกัน
+         [ ] เช็คยอดแยกคลินิก / ไม่ใช่คลินิก ว่าแยกถูก
+
+[ ] 2. (ควรทำ) ตัดสินใจเรื่องรูปแบบปี พ.ศ. vs ค.ศ. ให้ชัดเจน
+       ตอนนี้ data_viewer.py ปุ่ม "+ เพิ่ม" default เป็นวันที่ ค.ศ. วันนี้
+       (_today_iso()) และ _split_year_month() ไม่แปลงปีให้ เก็บตามที่กรอก
+       ต้องยืนยันว่าตรงกับที่ income_entry.py / expense_entry.py บันทึก
+       ถ้าโปรเจกต์ใช้ พ.ศ. ให้แก้ _today_iso() ให้ +543
+       >> ถ้าไม่ตรงกัน สรุปรายเดือน/รายปีจะหาข้อมูลไม่เจอ
+
+[ ] 3. (optional) ล้าง CSS ที่ไม่ได้ใช้แล้วใน data_viewer.py
+       .table-wrap / td.act / .icon / th.act ไม่มีใครเรียกแล้ว
+       หลังเปลี่ยนเป็น card layout (table + .form ยังต้องเก็บไว้)
+       ไม่เร่งด่วน ไม่กระทบการทำงาน
+
+[ ] 4. (optional) เพิ่ม "ค้นหา / กรองข้อมูล" ในหน้า list ของ data_viewer
+       ตอนนี้ดึงทุกแถวมาแสดงหมด ถ้าข้อมูลเยอะจะเลื่อนยาว
+       ไอเดีย: ช่อง input + ฟิลเตอร์ฝั่ง JS (ไม่ต้อง query ใหม่)
+       หรือกรองตามเดือน/ปี ผ่าน dv://filter/...
+
+[ ] 5. (optional, อนาคต) สรุปเทียบหลายปีในหน้าเดียว (กราฟแนวโน้ม)
+       ทำเป็นไฟล์ใหม่แยกต่างหากตามที่ตกลงไว้ใน [4.7]
+       ไม่ควรย้อนไปแก้ yearly_summary.py ให้ดึงหลายปีพร้อมกัน
+
+[8] คำแนะนำสำหรับแชทถัดไป
+----------------------------------------------------------------
+- เปิดแชทใหม่ด้วย: "อ่าน handoff v8 แล้วเริ่มงานข้อ 1 (ทดสอบ end-to-end)"
+  แล้วรายงานผลตาม checklist ในข้อ 7.1 มาทีละข้อ
+- ส่งโค้ดให้ AI ตรวจ ต้องพิมพ์ # ชื่อไฟล์.py กำกับบรรทัดแรกเสมอ
+- ถ้าจะเพิ่ม entity ใหม่ใน data_viewer.py ให้แก้ 3 จุด:
+  (1) _ENTITIES  (2) dict checks ใน _delete_guard()  (3) method show_xxx()
+- ถ้าจะเพิ่มตารางเข้า db_manager ให้ดู [4.5] และ [4.6] ควบคู่กัน
+- ถ้าจะทำหน้าสรุปใหม่ ให้ดู [4.7] เรื่องแนวทาง "กรอกก่อนแสดง"
+- ถ้าเขียน HTML string ใหม่ (ไฟล์ไหนก็ตาม) เช็คให้แน่ใจว่าถ้าเป็น
+  f-string ต้องใช้ {{ }} เสมอ ถ้าไม่ใช่ f-string ห้ามใช้ {{ }} เด็ดขาด
+- ถ้าปุ่มใน WebView กดไม่ติด ให้สงสัย overflow container ก่อนเป็นอันดับแรก
+  ดู [4.11] อย่าไปไล่แก้ JS ก่อน
+- ถ้า UI ค้างตอนเปิด dialog ให้เช็คว่าลืม @ui.in_background หรือเปล่า
+  ดู [4.12]
+- ถ้าเจอปัญหาคีย์บอร์ด/scroll ในฟอร์ม native ให้ copy pattern จาก
+  income_entry.py / expense_entry.py แทนเขียนใหม่จากศูนย์
+- ถ้าเจอ warning "possibly unbound" จาก linter ให้ตรวจว่ามีฟังก์ชันที่
+  ไม่ return ค่าครบทุก branch หรือตัวแปรที่ assign เฉพาะบาง if-branch
+
+================================================================
+END OF HANDOFF v8
+================================================================

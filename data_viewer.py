@@ -434,8 +434,8 @@ def _lookup_row(entity, rid, name):
         '<div class="lrow">'
         '<span class="lid">' + _escape(str(rid)) + '</span>'
         '<span class="lname">' + _escape(name) + '</span>'
-        '<a href="' + (base % 'edit')   + '">&#9998;</a>'
-        '<a class="del" href="' + (base % 'delete') + '">&#128465;</a>'
+        '<a class="icon edit" href="' + (base % 'edit') + '">แก้ไข</a>'
+        '<a class="icon del" href="' + (base % 'delete') + '">ลบ</a>'
         '</div>\n'
     )
 
@@ -826,9 +826,9 @@ class DataViewer:
         return self._save_lookup(entity, spec, rid, data)
 
     def _save_txn(self, entity, spec, rid, data):
-        date_v = str(data.get('date', '')).strip()
-        year, month = _split_year_month(date_v)
-        if year is None:
+        date_v, year, month = _normalize_date(data.get('date'))
+        if date_v is None:
+            # ใช้ path validation เดิมที่มีอยู่แล้ว แจ้ง "รูปแบบวันที่ไม่ถูกต้อง"
             return False, 'วันที่ต้องอยู่ในรูปแบบ YYYY-MM-DD'
 
         detail_text = str(data.get('detail_text', '')).strip()
