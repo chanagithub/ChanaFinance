@@ -210,19 +210,16 @@ def _base_css():
   td.act    { white-space: nowrap; text-align: center; }
   .icon {
     display: inline-block;
-    padding: 0 12px;
-    height: 32px;
-    line-height: 32px;
+    width: 34px;
+    height: 30px;
+    line-height: 30px;
     text-align: center;
-    border-radius: 6px;
-    font-size: 14px;
-    margin: 0 4px;
-    text-decoration: none;
-    background: #333336; 
-    color: #ffffff;
+    border-radius: 7px;
+    font-size: 15px;
+    margin: 0 2px;
+    background: #3a3a3c;
   }
-  .icon.edit { background: #2c5282; color: #90cdf4; }
-  .icon.del  { background: #742a2a; color: #feb2b2; }
+  .icon.del { background: #4a2b2b; }
   .footer   { text-align: center; padding: 12px 0 6px 0; font-size: 12px; color: #636366; }
   details { margin-bottom: 12px; border-radius: 8px; overflow: hidden; }
   summary {
